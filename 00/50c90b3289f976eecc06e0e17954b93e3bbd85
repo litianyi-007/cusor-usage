@@ -1,0 +1,32 @@
+Info.plist
+  h_f7edc9edffde80 12,14
+Makefile
+  h_f7edc9edffde80 1-2,14,16-17,24,29,32,36,40-51,61
+README.md
+  h_f7edc9edffde80 3-5,13-16,21-24,26-29,33-50,53,55-57,61-91,97-102,107-110,112-118,121-129,133,140-141,143,145-146,149,157-159,161-162,166,168-171
+Sources/SettingsView.swift
+  h_f7edc9edffde80 17-27,40,44,49-54,87,93
+Sources/TokenStore.swift
+  h_f7edc9edffde80 145-161
+Sources/UsageClient.swift
+  h_f7edc9edffde80 41-45
+Sources/UsageModels.swift
+  h_f7edc9edffde80 6-8,10-18,20,30,32,40,49,76-103
+Sources/UsagePanelView.swift
+  h_f7edc9edffde80 12-17,24,78,113-115,157,160,169-174,188-207
+Sources/UsageStore.swift
+  h_f7edc9edffde80 4,11-15,20-22,39,44-47,58-62,68-102
+Sources/main.swift
+  h_f7edc9edffde80 4,7-11,14-18,38-45,60,70,123-141,209,225,236-241,250-294,308,311,317-322,343-351,354-359
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "0050c90b3289f976eecc06e0e17954b93e3bbd85",
+  "prompts": {},
+  "humans": {
+    "h_f7edc9edffde80": {
+      "author": "litianyi <litianyi@corp.netease.com>"
+    }
+  }
+}
