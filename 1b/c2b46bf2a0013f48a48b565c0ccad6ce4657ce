@@ -1,0 +1,34 @@
+.gitignore
+  h_f7edc9edffde80 1-9
+Info.plist
+  h_f7edc9edffde80 1-28
+Makefile
+  h_f7edc9edffde80 1-45
+README.md
+  h_f7edc9edffde80 1-126
+Sources/SettingsView.swift
+  h_f7edc9edffde80 1-76
+Sources/TokenStore.swift
+  h_f7edc9edffde80 1-145
+Sources/UsageClient.swift
+  h_f7edc9edffde80 1-75
+Sources/UsageModels.swift
+  h_f7edc9edffde80 1-76
+Sources/UsagePanelView.swift
+  h_f7edc9edffde80 1-243
+Sources/UsageStore.swift
+  h_f7edc9edffde80 1-66
+Sources/main.swift
+  h_f7edc9edffde80 1-255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "1bc2b46bf2a0013f48a48b565c0ccad6ce4657ce",
+  "prompts": {},
+  "humans": {
+    "h_f7edc9edffde80": {
+      "author": "litianyi <litianyi@corp.netease.com>"
+    }
+  }
+}
