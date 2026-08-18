@@ -14,6 +14,17 @@ struct SettingsView: View {
         self.onTokenSaved = onTokenSaved
     }
 
+    private var expiryText: String {
+        guard let exp = TokenStore.tokenExpiry(token) else { return "" }
+        let days = Int(exp.timeIntervalSinceNow / 86400)
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd HH:mm"
+        if days >= 0 {
+            return "该 token 为 JWT,有效期至 \(f.string(from: exp))(约剩余 \(days) 天)。"
+        }
+        return "该 token 已过期(\(f.string(from: exp))),请在 Cursor 重新登录后再次读取。"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("设置 Cursor accessToken")
@@ -26,11 +37,19 @@ struct SettingsView: View {
                 if showToken {
                     TextField("accessToken", text: $token)
                         .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
                 } else {
                     SecureField("accessToken", text: $token)
                         .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
                 }
                 Button(showToken ? "隐藏" : "显示") { showToken.toggle() }
+            }
+
+            if !token.isEmpty, !expiryText.isEmpty {
+                Text(expiryText)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
             }
 
             HStack(spacing: 8) {
@@ -65,12 +84,12 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
             }
 
-            Text("Token 来源:Cursor 的 ~/Library/Application Support/Cursor/User/globalStorage/state.vscdb(键 cursorAuth/accessToken)。也可打开 Cursor → Settings → Accounts 复制会话令牌。Token 为约 2 个月有效期的 JWT,过期后在 Cursor 里重新登录即可,再点「从 Cursor 自动读取」。")
+            Text("Token 来源:Cursor 的 ~/Library/Application Support/Cursor/User/globalStorage/state.vscdb(键 cursorAuth/accessToken)。也可打开 Cursor → Settings → Accounts 复制会话令牌。Token 为 JWT(约 2 个月有效),过期后在 Cursor 里重新登录即可,再点「从 Cursor 自动读取」;本插件不做自动刷新,以免轮换 Cursor 本体的 refresh token。")
                 .font(.caption2)
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(20)
-        .frame(width: 480)
+        .frame(width: 500)
     }
 }

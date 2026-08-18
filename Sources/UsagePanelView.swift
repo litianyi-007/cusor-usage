@@ -9,13 +9,19 @@ enum UsageFormat {
         return String(format: "$%.2f", Double(v) / 100.0)
     }
 
+    /// 分(Double)→ 美元字符串
+    static func centsD(_ v: Double?) -> String {
+        guard let v else { return "—" }
+        return String(format: "$%.2f", v / 100.0)
+    }
+
     /// 百分比,如 26.68 → "26.7%"
     static func percent(_ v: Double?) -> String {
         guard let v else { return "—" }
         return String(format: "%.1f%%", v)
     }
 
-    /// unix 毫秒字符串 → "MM-dd" 或 "yyyy-MM-dd HH:mm"
+    /// unix 毫秒字符串 → "MM-dd"
     static func date(_ ms: String?) -> String {
         guard let ms, let t = Double(ms) else { return "—" }
         let d = Date(timeIntervalSince1970: t / 1000.0)
@@ -69,7 +75,7 @@ struct UsagePanelView: View {
             footer
         }
         .padding(14)
-        .frame(width: 330)
+        .frame(width: 340)
     }
 
     // MARK: 头部
@@ -104,6 +110,9 @@ struct UsagePanelView: View {
         if let pu = usage.planUsage {
             totalUsageSection(pu)
             modelSections(pu)
+            if !store.topModels.isEmpty {
+                topModelsSection
+            }
             onDemandSection(usage.spendLimitUsage)
             serverMessages(usage)
             autoBucketFooter(usage.autoBucketModels)
@@ -145,16 +154,22 @@ struct UsagePanelView: View {
         VStack(alignment: .leading, spacing: 6) {
             modelRow(title: "Cursor models(Auto)",
                      percent: UsageFormat.percent(pu.autoPercentUsed),
-                     spend: pu.autoSpend.map { UsageFormat.cents($0) })
+                     spend: poolSpend(for: true) ?? pu.autoSpend.map { UsageFormat.cents($0) })
             modelRow(title: "Other models(API)",
                      percent: UsageFormat.percent(pu.apiPercentUsed),
-                     spend: pu.apiSpend.map { UsageFormat.cents($0) })
+                     spend: poolSpend(for: false) ?? pu.apiSpend.map { UsageFormat.cents($0) })
             if let t = pu.totalPercentUsed {
                 modelRow(title: "综合用量",
                          percent: UsageFormat.percent(t),
                          spend: nil)
             }
         }
+    }
+
+    /// 从聚合用量得到的某池花费(分 → "$xx.xx");无数据时 nil
+    private func poolSpend(for cursor: Bool) -> String? {
+        guard let pool = store.poolSpendCents else { return nil }
+        return cursor ? UsageFormat.centsD(pool.cursor) : UsageFormat.centsD(pool.other)
     }
 
     private func modelRow(title: String, percent: String, spend: String?) -> some View {
@@ -167,6 +182,26 @@ struct UsagePanelView: View {
             Text(percent)
                 .font(.subheadline.weight(.semibold))
                 .monospacedDigit()
+        }
+    }
+
+    /// 按花费 Top 5 模型(来自 GetAggregatedUsageEvents)
+    private var topModelsSection: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("按模型花费 Top \(store.topModels.count)")
+                .font(.caption).foregroundColor(.secondary)
+            ForEach(store.topModels, id: \.name) { item in
+                HStack {
+                    Text(item.name)
+                        .font(.caption2)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer()
+                    Text(UsageFormat.centsD(item.cents))
+                        .font(.caption2)
+                        .monospacedDigit()
+                }
+            }
         }
     }
 

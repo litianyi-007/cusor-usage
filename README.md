@@ -1,6 +1,8 @@
 # Cursor Usage — macOS 菜单栏用量插件
 
-在 macOS System Bar(菜单栏)常驻显示 Cursor 当前计费周期用量,面板同时展示 **Cursor models** 与 **Other models** 两个池的用量,并支持在设置中保存/修改 accessToken。
+在 macOS System Bar(菜单栏)常驻显示 Cursor 当前计费周期用量,点击图标弹出面板,
+同时展示 **Cursor models** 与 **Other models** 两个用量池;设置入口可保存 / 修改 accessToken
+(存 macOS 钥匙串,绝不入库)。
 
 ---
 
@@ -8,103 +10,143 @@
 
 ### 1.1 接口协议:Connect RPC v1(JSON over HTTP)
 
-官方没有公开文档;协议与字段来自**实测抓包 + Cursor 桌面应用内嵌的 proto 定义** + 社区逆向文档([OpenUsage](https://github.com/PowerUserZ/OpenTokenUsage/blob/main/docs/providers/cursor.md))。结论:
+官方**没有**公开文档(公开的是 Enterprise 级 Admin/Analytics API,与本接口无关)。协议结论来自:
+本机**实机请求验证**(2026-08-19,HTTP 200)+ 社区逆向文档
+([OpenTokenUsage / Cursor provider](https://github.com/PowerUserZ/OpenTokenUsage/blob/main/docs/providers/cursor.md))
++ [Cursor-Usage-Status 扩展源码](https://github.com/ClearMeasureLabs/Cursor-Usage-Status)。
 
 | 项 | 值 |
 |---|---|
 | 端点 | `POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage` |
-| 协议 | Connect RPC v1(JSON over HTTP,非 gRPC-web 二进制、非 REST) |
-| 请求头 | `Authorization: Bearer <accessToken>`、`Content-Type: application/json`、`Connect-Protocol-Version: 1` |
-| 请求体 | `{}`(proto 可选字段:`teamId`、`includePooledUsage`;个人账户用默认即可) |
-| 错误格式 | 非 2xx 时返回 Connect 错误:`{"code":"unauthenticated","message":"Error",...}`(已实测 401) |
+| 协议 | **Connect RPC v1(JSON over HTTP)** —— 不是 gRPC-web 二进制帧,不是 REST;普通 JSON POST 即可 |
+| 请求头 | `Authorization: Bearer <accessToken>`(必需)<br>`Content-Type: application/json`(必需)<br>`Connect-Protocol-Version: 1`(必需) |
+| 请求体 | `{}`(proto 可选字段 teamId / includePooledUsage 等,个人账户默认即可) |
+| 错误 | 非 2xx 返回 Connect 错误 JSON,如 401:`{"code":"unauthenticated","message":"Error",...}` |
 
-**实测**:无 token / 假 token → HTTP 401 + `{"code":"unauthenticated",...}`;真实 token → HTTP 200。请求字段名用 lowerCamelCase(Connect JSON 默认)。
+同一服务(同鉴权方式)下还有:
+`GetPlanInfo`(套餐名/价格)、`GetFilteredUsageEvents`(逐条事件,分页 `{"page":N,"pageSize":M}`)、
+`GetAggregatedUsageEvents`(按模型聚合,`{}` 即可)。
+实测 `GET /api/usage/summary` 在 api2.cursor.sh 上 **404**(那是 cursor.com 网页端、Cookie 鉴权的接口,不在本工具范围)。
 
 ### 1.2 响应解析:金额与百分比都在 `planUsage`
 
-响应 proto 字段(取自 Cursor 应用内嵌定义,`workbench.desktop.main.js` 中 `aiserver.v1.GetCurrentPeriodUsageResponse`):
+实机响应(已核对字段,金额单位**分** cents,÷100 = 美元;时间戳为 unix 毫秒字符串):
 
+```jsonc
+{
+  "billingCycleStart": "1786904477000",  "billingCycleEnd": "1789582877000",
+  "planUsage": {
+    "totalSpend": 18883,  "includedSpend": 18883,  "remaining": 21117,  "limit": 40000,
+    "remainingBonus": false,
+    "autoPercentUsed": 2.7715,   // Cursor models 池 %
+    "apiPercentUsed": 26.68,     // Other models 池 %
+    "totalPercentUsed": 7.5532   // 综合 %
+  },
+  "spendLimitUsage": { "limitType": "user" },        // 按需额度;本账户未启用,无金额字段
+  "displayThreshold": 200, "enabled": true,
+  "displayMessage": "You've used 47% of your included usage",
+  "autoModelSelectedDisplayMessage": "...", "namedModelSelectedDisplayMessage": "...",
+  "autoBucketModels": ["default","composer-2.5","cursor-grok-4.5", ...]   // Cursor 第一方模型名单
+}
 ```
-billingCycleStart / billingCycleEnd      unix 毫秒(JSON 中为字符串)
-planUsage.totalSpend / includedSpend / bonusSpend / remaining / limit   全部为「分」,÷100 = 美元
-planUsage.autoSpend? / apiSpend? / autoLimit? / apiLimit?               可选,后端未填充时为 null
-planUsage.autoPercentUsed? / apiPercentUsed? / totalPercentUsed?        %
-planUsage.remainingBonus? / bonusTooltip?
-spendLimitUsage.{totalSpend, pooledLimit?, pooledUsed?, pooledRemaining?,
-                 individualLimit?, individualUsed, individualRemaining?, limitType, ...}   按需额度
-displayThreshold(基点,200=2%) / enabled / displayMessage
-autoModelSelectedDisplayMessage? / namedModelSelectedDisplayMessage?
-autoBucketModels[]   Auto 桶包含的模型名列表
-```
 
-### 1.3 「Cursor models vs Other models」的映射(关键)
+### 1.3 「Cursor models vs Other models」映射(关键)
 
-Cursor 官方文档([usage-limits](https://cursor.com/help/models-and-usage/usage-limits.md)、[models-and-pricing](https://cursor.com/docs/models-and-pricing.md))说明每个套餐有两个用量池:
-
-- **Cursor Models 池**:第一方模型(Cursor Grok 4.6/4.5、Composer 2.5),额度「慷慨」;
-- **Other Models 池**:第三方模型(OpenAI/Anthropic/Google 等),按模型 API 价计费(Ultra 为 $400)。
-
-GetCurrentPeriodUsage 响应中没有字面量 `cursorModels/otherModels` 字段,但 **Cursor 应用自己的代码**给出了权威映射(`firstPartyPercentUsed: planUsage.autoPercentUsed, thirdPartyPercentUsed: planUsage.apiPercentUsed`),即:
+Cursor 界面/文档把用量分成两个池。`GetCurrentPeriodUsage` 响应里没有字面量 `cursorModels/otherModels`
+字段,但权威映射来自 Cursor 应用自身代码(`firstPartyPercentUsed = planUsage.autoPercentUsed`,
+`thirdPartyPercentUsed = planUsage.apiPercentUsed`),与 [omarchy agent-usage-cursor 收集器](https://github.com/basecamp/omarchy/pull/7087) 一致:
 
 | 面板项 | 字段 | 含义 |
 |---|---|---|
-| **Cursor models(Auto)** | `planUsage.autoPercentUsed`(+可选 `autoSpend`) | Auto 桶(composer / cursor-grok 等 `autoBucketModels`)用量 |
-| **Other models(API)** | `planUsage.apiPercentUsed`(+可选 `apiSpend`) | 指定第三方模型用量 |
-| Other Models 池金额 | `limit`(额度)/ `includedSpend`(已用)/ `remaining`(剩余) | used% = `includedSpend/limit`,与服务端 `displayMessage` 一致 |
-| 综合用量 | `totalPercentUsed` | 跨两个池的加权综合 % |
+| **Cursor models** | `planUsage.autoPercentUsed` | Auto 桶(= `autoBucketModels` 名单)用量 % |
+| **Other models** | `planUsage.apiPercentUsed` | 指定第三方模型(API)用量 % |
+| Other 池金额 | `limit`(额度)/ `includedSpend`(已用)/ `remaining`(剩余) | 与 `displayMessage` 口径一致 |
+| 综合用量 | `totalPercentUsed` | 跨池加权综合 % |
 
-> 不确定点(如实说明):`autoPercentUsed`/`apiPercentUsed` 的精确分母(权重口径)后端未公开;`autoSpend/apiSpend/autoLimit/apiLimit` 为可选字段,本机实测响应中未填充。面板对缺失字段显示「—」,不影响核心展示。`includePooledUsage=true` 实测返回与默认相同(该参数可能只对团队账户生效)。
+**两个池的美元拆分**:接口可选字段 `autoSpend/apiSpend` 本机实测**未填充**(null),因此本工具用
+`GetAggregatedUsageEvents` 的 `totalCents` 按 `autoBucketModels` 归属求和得到。
+**验证**:本机实测 aggregations 的 totalCents 之和 = 18882.90 分 ≈ `planUsage.totalSpend` 18883 分(误差 <0.01 分)。
+归属规则:名单精确命中;Cursor 第一方模型另有前缀启发式(`cursor-` / `composer` / `vega` / `grok`),
+与实测模型名(cursor-grok-4.6-*、composer-* 等)一致;第三方(claude-* / gpt-*)归 Other 池。
 
-### 1.4 Token 从哪来、怎么存
+> 不确定点(如实标注):
+> - `autoPercentUsed` / `apiPercentUsed` 的分母(权重口径)未公开,故 `totalPercentUsed` ≠ 两者之和
+>   (实测 7.55% vs 2.77% + 26.68%);% 直接透传服务端值。
+> - `autoSpend/apiSpend/autoLimit/apiLimit` 为可选字段,本账户未返回;面板优先用接口字段,缺失时用聚合拆分。
+> - `GetFilteredUsageEvents` 已实测可用(71 条事件),面板当前用聚合接口做池拆分,未做逐条明细页。
+> - 协议为「Connect RPC v1 JSON」;同一端点理论上也接受 gRPC-web 二进制帧,但 JSON 帧已足够且更简单。
 
-- **来源(实测本机)**:`~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`(SQLite)的 `cursorAuth/accessToken`。该 token 是 **JWT(HS256,含 `offline_access` scope),有效期约 2 个月**;另有 `cursorAuth/refreshToken`、`cursorAuth/cachedEmail`、`cursorAuth/stripeMembershipType` 等键。也可以从 Cursor → Settings → Accounts 复制。
-- **刷新**:`POST https://api2.cursor.sh/oauth/token` `{grant_type:"refresh_token", client_id:"KbZUR41cY7W6zRSdpSUJ7I7mLYBKOCmB", refresh_token}` → `{access_token, id_token, shouldLogout}`。⚠️ Auth0 刷新会轮换旧 refresh token:由插件发起刷新若不写回 vscdb,会让 Cursor 本体掉登录。**本插件不做自动刷新**,而是提供「从 Cursor 自动读取」——每次读取 Cursor 当前有效 token(只读,零副作用);token 过期时在 Cursor 重新登录即可。
-- **存放**:macOS Keychain(generic password,service `ai-goods.cursor-usage`)优先,兜底文件 `~/Library/Application Support/CursorUsage/token.txt`(0600)。**任何 token 都不会写入项目仓库**(仓库内无 token 存储逻辑,`.gitignore` 排除相关文件)。
+### 1.4 Token 从哪来、如何安全存放
+
+- **来源(本机实测)**:`~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`(SQLite)
+  中键 `cursorAuth/accessToken`。它是 **JWT**(HS256,scope 含 `offline_access`),本机实测有效期约 2 个月;
+  同库还有 `cursorAuth/refreshToken`、`cursorAuth/stripeMembershipType` 等。也可在 Cursor → Settings → Accounts 复制。
+- **刷新机制(调研到,但故意不做)**:`POST https://api2.cursor.sh/oauth/token`
+  `{"grant_type":"refresh_token","client_id":"KbZUR41cY7W6zRSdpSUJ7I7mLYBKOCmB","refresh_token":"..."}`
+  → `{"access_token","id_token","shouldLogout"}`。⚠️ Auth0 刷新会**轮换**旧 refresh token:插件若自动刷新
+  且不写回 vscdb,会让 Cursor 本体掉登录。因此本插件**只读** Cursor 的 token,不触发刷新;
+  token 过期时在 Cursor 里重新登录即可,再点「从 Cursor 自动读取」。
+- **存放(安全)**:macOS **Keychain**(generic password,service `ai-goods.cursor-usage`)优先;
+  兜底文件 `~/Library/Application Support/CursorUsage/token.txt`(0600 权限,仅 Keychain 不可用时)。
+  **accessToken 绝不写入项目仓库**(仓库无任何 token 存储逻辑,`.gitignore` 已排除)。
 
 ---
 
 ## 二、实现方案
 
-- **技术栈**:原生 Swift + AppKit/SwiftUI,零第三方依赖,仅用系统自带框架(Xcode 工具链)。菜单栏用 `NSStatusItem`,用量面板用无边框 `NSPanel`(SwiftUI 内容),设置用独立小窗口。
+- **技术栈**:原生 Swift + AppKit/SwiftUI,**零第三方依赖**,仅系统框架(Xcode 工具链)。
+  菜单栏用 `NSStatusItem`,用量面板用无边框 `NSPanel`(SwiftUI 内容),设置用独立窗口。
+  编译产物做 **ad-hoc codesign**(否则较新 macOS 上 Keychain 返回 errSecMissingEntitlement)。
+- **交互**:状态栏图标(含综合用量百分比标题)左键 → 弹出用量面板;右键 → 菜单
+  (刷新用量 / 设置 Token… / 退出);面板含「刷新」「设置 Token…」按钮;面板打开时数据超 60 秒自动刷新;
+  后台每 5 分钟自动刷新;`LSUIElement=true` 不占 Dock。
 - **文件结构**:
 
 ```
 cusor-usage/
-├── Makefile                 # build / bundle / run / test-dump / install / clean
-├── Info.plist               # LSUIElement=true(不占 Dock)
-├── .gitignore
-├── README.md
+├── Makefile                 # build / bundle / run / test-dump / dump-json / smoke-test / test-keychain / install / clean
+├── Info.plist               # LSUIElement=true(菜单栏常驻,不占 Dock)
+├── .gitignore               # 排除 build/ 与 token 文件
+├── README.md                # 本文档
 └── Sources/
-    ├── main.swift           # AppDelegate、状态栏图标、面板/设置窗口、--dump 诊断模式
-    ├── UsageModels.swift    # GetCurrentPeriodUsage / GetPlanInfo 响应模型(注释含字段来源)
-    ├── UsageClient.swift    # Connect RPC v1 客户端(POST + 三个请求头 + 错误解析)
-    ├── TokenStore.swift     # Keychain + 兜底文件 + 从 Cursor vscdb 只读
-    ├── UsageStore.swift     # 全局状态:拉取/缓存/定时刷新(5 分钟)
-    ├── UsagePanelView.swift # 面板 UI:两个池的用量 + 金额 + 按需额度 + 服务端消息
-    └── SettingsView.swift   # 设置窗口:粘贴/保存 token、一键从 Cursor 读取
+    ├── main.swift           # AppDelegate、状态栏图标+百分比标题、面板/设置窗口、--dump/--dump-json/--keychain-test/--smoke-test
+    ├── UsageModels.swift    # GetCurrentPeriodUsage / GetPlanInfo / GetAggregatedUsageEvents 响应模型(注释含字段来源)
+    ├── UsageClient.swift    # Connect RPC v1 客户端(POST + 三个必需请求头 + 错误解析)
+    ├── TokenStore.swift     # Keychain + 兜底 0600 文件 + 从 Cursor vscdb 只读 + JWT 有效期解析
+    ├── UsageStore.swift     # 全局状态:拉取/缓存/定时刷新 + 两个池的美元拆分(aggregations × autoBucketModels)
+    ├── UsagePanelView.swift # 面板 UI:两个池用量/金额/进度条、Top 模型花费、按需额度、服务端消息
+    └── SettingsView.swift   # 设置窗口:粘贴/保存 token、从 Cursor 一键读取、token 有效期展示
 ```
-
-- **交互**:状态栏图标左键 → 弹出用量面板;右键 → 菜单(刷新 / 设置 Token / 退出);面板内含「刷新」「设置 Token…」按钮;面板打开时若数据超过 60 秒自动刷新。
 
 ---
 
-## 三、本地启动与验证
+## 三、可运行实现(交付内容)
+
+- 菜单栏常驻程序 `build/CursorUsage`(或打包 `build/CursorUsage.app`);
+- 面板同时展示 **Cursor models(Auto)** 与 **Other models(API)** 的百分比 + 美元花费,
+  以及 Other 池金额(已用/额度/剩余)、综合用量、Top 5 模型花费、按需额度、服务端消息、计费周期;
+- 设置入口:右键菜单 / 面板按钮「设置 Token…」,支持粘贴保存到钥匙串、从 Cursor 本地自动读取、显示 token 有效期;
+- 无 GUI 验证模式:`--dump`、`--dump-json`、`--keychain-test`、`--smoke-test`。
+
+---
+
+## 四、本地启动与验证
 
 前置:macOS 13+,已装 Xcode 命令行工具;本机已登录 Cursor(用于自动读取 token)。
 
 ```bash
 cd /Users/litianyi/Documents/Code/_ai-goods/cusor-usage
 
-# 1) 编译
-make build            # → build/CursorUsage(可执行文件)
+# 1) 编译(自动 ad-hoc 签名)
+make build            # → build/CursorUsage
 
-# 2) 无 GUI 验证:真实拉取当前周期用量并打印解析结果(token 从 Cursor 本地读取)
+# 2) 无 GUI 验证:真实拉取当前周期用量并打印解析结果(token 从 Cursor 本地只读)
 make test-dump
-# 或
-./build/CursorUsage --dump --from-cursor
+# 或原始 JSON + 池拆分:
+make dump-json
 
 # 3) 打包 .app 并启动菜单栏常驻
-make run              # 或 make bundle 后 open build/CursorUsage.app
+make run              # open build/CursorUsage.app
 
 # 4) 可选:安装到 /Applications
 make install
@@ -112,15 +154,18 @@ make install
 
 验证要点:
 
-1. `test-dump` 应打印计费周期、套餐、Other Models 池金额(已用/额度/剩余)、Cursor models / Other models 百分比、服务端消息等;
-2. 状态栏出现柱状图图标;左键弹出面板,能看到两个池的用量与进度条;
+1. `make test-dump` 应打印计费周期、套餐、Other 池金额、Cursor models / Other models 百分比、
+   美元拆分(合计应等于 totalSpend)与 Top 模型花费;
+2. 状态栏出现柱状图图标(右侧带综合用量百分比);左键弹出面板,可见两个池的用量与进度条;
 3. 右键 → 设置 Token…:粘贴 token 保存到钥匙串,或点「从 Cursor 自动读取」;保存后面板自动刷新;
-4. 断网 / token 失效时面板显示明确错误(如 HTTP 401 → 提示更新 token)。
+4. 断网 / token 失效时面板显示明确错误(HTTP 401 → 提示更新 token);
+5. `make smoke-test` / `make test-keychain` 可分别自检 GUI 启动与钥匙串存取。
 
 ---
 
-## 四、已知限制
+## 五、已知限制
 
-- `autoSpend/apiSpend` 等可选字段当前账户未返回,金额列显示「—」;
-- 官方文档([usage-limits](https://cursor.com/help/models-and-usage/usage-limits.md))可能随版本变化;接口字段以 Cursor 应用内嵌 proto 为准,应用升级后字段可能增删;
-- 不做 token 自动刷新(原因见 1.4,避免破坏 Cursor 本体会话)。
+- `autoPercentUsed/apiPercentUsed` 的分母权重口径未公开(见 1.3),% 为服务端原值透传;
+- `autoSpend/apiSpend` 可选字段当前账户未返回,池金额为聚合拆分(误差与 totalSpend < 0.01 分,已实测);
+- 不做 token 自动刷新(原因见 1.4,避免轮换 Cursor 本体的 refresh token);
+- 接口为未公开协议,字段/端点可能随 Cursor 版本变化;以实机响应为准,应用升级后需回归验证。

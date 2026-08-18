@@ -38,6 +38,11 @@ struct UsageClient {
                        token: token, body: [:])
     }
 
+    static func fetchAggregatedUsageEvents(token: String) async throws -> AggregatedUsageEventsResponse {
+        try await post(path: "/aiserver.v1.DashboardService/GetAggregatedUsageEvents",
+                       token: token, body: [:])
+    }
+
     private static func post<T: Decodable>(path: String, token: String, body: [String: Any]) async throws -> T {
         let url = baseURL.appendingPathComponent(path)
         var request = URLRequest(url: url)

@@ -142,4 +142,21 @@ enum TokenStore {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return (s?.isEmpty ?? true) ? nil : s
     }
+
+    // MARK: - JWT 辅助(仅用于展示 token 有效期,不解密、不上传)
+
+    /// 解析 JWT 的 payload 中 exp 字段(秒),返回过期时间。
+    static func tokenExpiry(_ token: String) -> Date? {
+        let parts = token.split(separator: ".")
+        guard parts.count >= 2 else { return nil }
+        var b64 = String(parts[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let rem = b64.count % 4
+        if rem == 2 { b64 += "==" } else if rem == 3 { b64 += "=" }
+        guard let data = Data(base64Encoded: b64),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let exp = obj["exp"] as? Double else { return nil }
+        return Date(timeIntervalSince1970: exp)
+    }
 }
