@@ -2,6 +2,8 @@
 
 **macOS 菜单栏 Cursor 用量实时查看器 · A macOS menu bar monitor for your Cursor usage**
 
+> 🛠️ **dev by DeepSeek Harness on ClawHive** · 由 DeepSeek Harness 在 ClawHive 上开发
+
 Click the menu bar icon to see your current billing-cycle usage at a glance — **Cursor Models** and **Other Models** pools side by side, in dollars and percent.
 
 点击菜单栏图标，一眼看清当前计费周期的用量：**Cursor Models** 与 **Other Models** 两个用量池的美元花费与百分比。
