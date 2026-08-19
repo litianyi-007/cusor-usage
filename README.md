@@ -2,7 +2,11 @@
 
 **macOS 菜单栏 Cursor 用量实时查看器 · A macOS menu bar monitor for your Cursor usage**
 
-> 🛠️ **dev by DeepSeek Harness on ClawHive** · 由 DeepSeek Harness 在 ClawHive 上开发
+<p align="center">
+  <a href="https://github.com/deepseek-ai/deepseek-harness" title="DeepSeek Harness 黑鲸"><img src="docs/badges/deepseek-harness-whale.svg" width="30" height="30" alt="DeepSeek Harness 黑鲸" /></a>
+  <strong>&nbsp;dev by DeepSeek Harness on ClawHive · 由 DeepSeek Harness 在 ClawHive 上开发&nbsp;</strong>
+  <a href="http://yunxin.163.com/promotion/clawhive" title="ClawHive 帝王蟹（网易智企）"><img src="docs/badges/clawhive-crab.png" width="30" height="30" alt="ClawHive 帝王蟹" /></a>
+</p>
 
 Click the menu bar icon to see your current billing-cycle usage at a glance — **Cursor Models** and **Other Models** pools side by side, in dollars and percent.
 
