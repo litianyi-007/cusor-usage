@@ -67,13 +67,13 @@ enum Screenshot {
 
         var ok = true
         model.showSettings = false
-        ok = render(view: UsagePanelView(model: model),
+        ok = render(view: UsagePanelView(model: model, imitationBackdrop: true),
                     to: outDir.appendingPathComponent("panel.png"),
                     size: CGSize(width: 820, height: 640)) && ok
 
         if withSettings {
             model.showSettings = true
-            ok = render(view: UsagePanelView(model: model),
+            ok = render(view: UsagePanelView(model: model, imitationBackdrop: true),
                         to: outDir.appendingPathComponent("panel-settings.png"),
                         size: CGSize(width: 820, height: 860)) && ok
         }
@@ -83,7 +83,7 @@ enum Screenshot {
         return ok ? 0 : 1
     }
 
-    /// 深色桌面背景 + 面板卡片（面板视图自带圆角背景，这里只加投影）
+    /// 深色桌面背景 + 液态玻璃面板卡片（截图模式用拟真玻璃底，此处只加投影）
     @MainActor
     private static func render<Content: View>(view: Content, to url: URL, size: CGSize) -> Bool {
         let content = ZStack {

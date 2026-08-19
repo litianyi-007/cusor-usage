@@ -19,6 +19,10 @@ Click the menu bar icon to see your current billing-cycle usage at a glance — 
 
 *Screenshots rendered from real data on this machine (Ultra plan). · 截图为本机真实数据渲染（Ultra 套餐）。*
 
+> ✨ **macOS 26 Liquid Glass** — the panel adopts Apple's latest **Liquid Glass** (液态玻璃) design on macOS 26: native `glassEffect` material with wallpaper-tinted translucency, glass edge highlights, rounded corners, a soft floating shadow, and transparent margins (clicks there don't enter panel interactions; the window never covers the menu bar). On macOS 12–25 it gracefully falls back to the classic solid card. Product screenshots use a simulated glass backdrop (ImageRenderer can't composite `glassEffect`).
+>
+> ✨ **macOS 26 液态玻璃**——在 macOS 26 上面板采用苹果最新**液态玻璃**方案：原生 `glassEffect` 材质（随壁纸取色的半透明、玻璃边缘高光、大圆角、柔和悬浮投影、透明边距不进交互且窗口不压菜单栏）；macOS 12–25 自动回退为传统实心卡片。产品截图为拟真玻璃底（ImageRenderer 无法合成 `glassEffect`）。
+
 ---
 
 ## Features · 功能
@@ -33,12 +37,15 @@ Click the menu bar icon to see your current billing-cycle usage at a glance — 
 | 🔄 **Auto refresh** — on open, every 60 s while open, every 5 min in background | 🔄 **自动刷新**——打开即拉取、打开期间每 60 s、后台每 5 min |
 | 🔐 **Token settings** — save to **macOS Keychain**; ⚙️ toggles open/close (two collapse entries), or auto-read Cursor's local login (default), never stored in this repo | 🔐 **Token 设置**——保存到 **macOS 钥匙串**；⚙️ 可展开/收起（两处收起入口），或自动读取 Cursor 本地登录态（默认），绝不写入仓库 |
 | 🛡️ **Zero dependencies** — pure Swift (AppKit + SwiftUI), no Electron, no runtime deps | 🛡️ **零依赖**——纯 Swift（AppKit + SwiftUI），无 Electron、无运行时依赖 |
+| ✨ **Liquid Glass panel** — native macOS 26 `glassEffect` (wallpaper-tinted glass, edge highlight, rounded 24pt corners, floating shadow, click-through margins); classic card fallback below macOS 26 | ✨ **液态玻璃面板**——macOS 26 原生 `glassEffect`（随壁纸取色、边缘高光、24pt 连续圆角、悬浮投影、边距点击穿透）；低于 macOS 26 回退经典卡片 |
 
 ---
 
 ## Quick Start · 快速开始
 
-Requirements · 环境要求：macOS 12+, Xcode command line tools (`swiftc`), and Cursor signed in on this Mac (for auto token) or a manual token.
+Requirements · 环境要求：macOS 12+（**macOS 26 启用液态玻璃面板**），Xcode command line tools (`swiftc`, **Xcode 26+ SDK 才能编译液态玻璃代码**), and Cursor signed in on this Mac (for auto token) or a manual token.
+
+环境要求：macOS 12+（**macOS 26 上启用液态玻璃面板**），Xcode 命令行工具（`swiftc`，**需 Xcode 26+ SDK 编译液态玻璃代码**），以及本机已登录 Cursor（自动取 token）或手动粘贴 token。
 
 ```bash
 cd /Users/litianyi/Documents/Code/_ai-goods/cusor-usage

@@ -60,11 +60,18 @@ cursor-usage/
 
 ### 面板内容（SwiftUI，宽 ~330pt）
 
+- **视觉（macOS 26+）**：**液态玻璃（Liquid Glass）** —— 面板根视图挂 `PanelBackdrop` 修饰器：
+  - `glassEffect(.regular, in: RoundedRectangle(cornerRadius: 24, style: .continuous))`（SwiftUI 原生 API，macOS 26+）：半透明玻璃随壁纸取色、自动玻璃描边与顶部高光、24pt 连续圆角；
+  - `.shadow` 柔和悬浮投影（`black 0.28 / radius 12 / y 6`）；
+  - 窗口四周留透明边距（上 10 / 左右 20 / 下 24）容纳投影，`GlassHostingView.hitTest` 对边距返回 nil 实现**边距点击不进面板交互**；点击判定（外部点击关闭）用 `MenuPanel.glassScreenFrame`（扣除边距后的玻璃区域）；
+  - 定位上移 8pt（窗口顶与菜单栏底齐平，不压菜单栏，避免吞掉相邻状态栏项点击）：玻璃顶约 10pt 悬于菜单栏下方。
+  - **回退**：macOS 12–25 保持传统实心圆角卡片（`windowBackgroundColor` + 12pt 圆角）；`--screenshot` 模式因 ImageRenderer 无法合成 `glassEffect` 的 Metal 图层，改用拟真玻璃底（`.ultraThinMaterial` + 顶部高光 + 双层描边）。
 - **头部**：图标 + “Cursor 用量” + 套餐/邮箱（GetPlanInfo + 本地 cachedEmail）
 - **用量条 ×3**：
   - `Cursor Models` — autoPercentUsed（绿色→橙→红按阈值变色）
   - `Other Models` — apiPercentUsed
   - `Included total` — totalPercentUsed + 金额 `已用 $X / 限额 $Y / 剩余 $Z`（美分 ÷ 100）
+  - 用量条为玻璃质感：半透明轨道（primary 0.10 + 细描边）+ 渐变填充 + 顶部高光 + 白色细描边
 - **周期**：`2026-08-16 → 2026-09-19 · 23 天后重置`
 - **按量付费**（有值时）：pooled / individual used·limit
 - **底部**：刷新按钮 · 更新时间 · 设置(⚙️) · 退出

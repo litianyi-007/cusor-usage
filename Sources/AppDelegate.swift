@@ -6,6 +6,27 @@ import Combine
 final class MenuPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    /// 液态玻璃模式的透明边距（容纳投影），0 = 传统模式
+    var glassInset: CGFloat = 0
+
+    /// 玻璃实际占用的屏幕区域（扣除透明边距）；点击判定用
+    var glassScreenFrame: NSRect {
+        guard glassInset > 0, let cv = contentView else { return frame }
+        let inWindow = cv.convert(cv.bounds.insetBy(dx: glassInset, dy: glassInset), to: nil)
+        return convertToScreen(inWindow)
+    }
+}
+
+/// 液态玻璃专用宿主视图：透明边距区域的点击返回 nil（点击穿透，不进面板交互）
+final class GlassHostingView<Content: View>: NSHostingView<Content> {
+    var glassInset: CGFloat = 0
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let hit = super.hitTest(point)
+        guard let hit, glassInset > 0 else { return hit }
+        return bounds.insetBy(dx: glassInset, dy: glassInset).contains(point) ? hit : nil
+    }
 }
 
 @MainActor
@@ -87,7 +108,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - 面板（自定位，替代 NSPopover：位置可控、内容变化自动重排）
 
     private func setupPanel() {
-        let contentVC = NSHostingController(rootView: UsagePanelView(model: model))
         let p = MenuPanel(contentRect: NSRect(x: 0, y: 0, width: 340, height: 420),
                           styleMask: [.borderless, .nonactivatingPanel],
                           backing: .buffered,
@@ -99,7 +119,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         p.isMovableByWindowBackground = false
         p.hidesOnDeactivate = false
         p.becomesKeyOnlyIfNeeded = true
-        p.contentViewController = contentVC
+        if #available(macOS 26.0, *) {
+            // 液态玻璃模式：四周留透明边距容纳投影（上 10pt 贴菜单栏，左右下更宽），
+            // 边距区域点击不进面板交互（GlassHostingView.hitTest 返回 nil）
+            let hosting = GlassHostingView(rootView: AnyView(
+                UsagePanelView(model: model)
+                    .padding(.top, 10)
+                    .padding(.leading, 20)
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 24)))
+            hosting.glassInset = 20
+            p.glassInset = 20
+            p.contentView = hosting
+        } else {
+            p.contentViewController = NSHostingController(rootView: AnyView(UsagePanelView(model: model)))
+        }
         panel = p
         logPanel("初始化面板")
     }
@@ -136,8 +170,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// 按内容 fittingSize 调整尺寸并定位到状态栏按钮正下方
-    private func layoutPanel(panel: NSPanel, button: NSStatusBarButton) {
-        let fitting = panel.contentViewController?.view.fittingSize ?? NSSize(width: 340, height: 300)
+    private func layoutPanel(panel: MenuPanel, button: NSStatusBarButton) {
+        let fitting = panel.contentView?.fittingSize ?? NSSize(width: 340, height: 300)
         let width = max(300, min(fitting.width, 380))
         let height = max(140, min(fitting.height, 900))
         let size = NSSize(width: width, height: height)
@@ -148,7 +182,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// 定位：按钮中点在菜单栏正下方，屏幕内钳制
-    private func positionPanel(panel: NSPanel, button: NSStatusBarButton) {
+    private func positionPanel(panel: MenuPanel, button: NSStatusBarButton) {
         guard let window = button.window else {
             PanelModel.diagnose("position: button.window 为 nil，兜底居中")
             panel.center()
@@ -160,7 +194,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let size = panel.frame.size
         var x = buttonScreenFrame.midX - size.width / 2
         x = min(max(x, screenFrame.minX + 8), screenFrame.maxX - size.width - 8)
-        let y = buttonScreenFrame.minY - size.height - 8
+        // 传统模式：面板顶 8pt 悬于菜单栏下方；液态玻璃模式：窗口顶与菜单栏底齐平
+        //（透明边距上移，玻璃顶仍约 10pt 悬于菜单栏下方；窗口不压菜单栏，避免吞掉相邻状态栏项点击）
+        let y = buttonScreenFrame.minY - size.height - 8 + (panel.glassInset > 0 ? 8 : 0)
         PanelModel.diagnose("position: winFrame=\(NSStringFromRect(window.frame)) btnOnScreen=\(NSStringFromRect(buttonScreenFrame)) screen=\(NSStringFromRect(screenFrame)) -> x=\(String(format: "%.0f", x)) y=\(String(format: "%.0f", y))")
         panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
@@ -173,7 +209,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async {
                 guard let self, let panel = self.panel, panel.isVisible else { return }
                 let point = event.locationInWindow // 全局监控的事件坐标即屏幕坐标
-                if !panel.frame.contains(point) {
+                if !panel.glassScreenFrame.contains(point) {
                     self.hidePanel()
                 }
             }

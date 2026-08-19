@@ -5,23 +5,32 @@ import SwiftUI
 struct UsagePanelView: View {
     @ObservedObject var model: PanelModel
 
+    /// 截图模式：ImageRenderer 无法合成原生玻璃效果的 Metal 图层，
+    /// 此模式下用拟真玻璃底渲染产品图（真实窗口不受影响）。
+    var imitationBackdrop = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            Divider().padding(.vertical, 10)
+            separator
             content
             if model.showSettings {
                 settingsSection
             }
-            Divider().padding(.vertical, 10)
+            separator
             footer
         }
         .padding(16)
         .frame(width: 340)
-        .background(RoundedRectangle(cornerRadius: 12)
-            .fill(Color(nsColor: .windowBackgroundColor)))
-        .overlay(RoundedRectangle(cornerRadius: 12)
-            .stroke(Color.primary.opacity(0.08), lineWidth: 1))
+        .modifier(PanelBackdrop(imitation: imitationBackdrop))
+    }
+
+    /// 玻璃面板发丝分隔线（替代系统 Divider）
+    private var separator: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.06))
+            .frame(height: 1)
+            .padding(.vertical, 9)
     }
 
     // MARK: 头部
@@ -79,7 +88,7 @@ struct UsagePanelView: View {
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.05)))
+            .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.04)))
         case .loaded, .idle:
             if let usage = model.usage {
                 meters(usage)
@@ -266,7 +275,7 @@ struct UsagePanelView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(10)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.05)))
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.04)))
         .padding(.top, 6)
     }
 
@@ -303,6 +312,55 @@ struct UsagePanelView: View {
     }
 }
 
+// MARK: - 面板背景（macOS 26 液态玻璃）
+
+/// 面板背景三态：
+/// - **macOS 26+ 真实窗口**：原生 Liquid Glass（SwiftUI `.glassEffect`，自动带玻璃描边/顶部高光/壁纸取色）
+/// - **旧系统（macOS 12–25）**：回退为传统实心圆角卡片（保持原观感）
+/// - **截图模式**：拟真玻璃底（ImageRenderer 无法合成 `.glassEffect` 的 Metal 图层，用材质+高光+描边模拟）
+private struct PanelBackdrop: ViewModifier {
+    var imitation = false
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if imitation {
+            content.background(GlassBackdropImitation())
+        } else if #available(macOS 26.0, *) {
+            content
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .shadow(color: .black.opacity(0.28), radius: 12, x: 0, y: 6)
+        } else {
+            content
+                .background(RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(nsColor: .windowBackgroundColor)))
+                .overlay(RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1))
+        }
+    }
+}
+
+/// 拟真液态玻璃底：仅用于产品截图（半透明材质 + 顶部高光 + 双层描边）
+private struct GlassBackdropImitation: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 24, style: .continuous)
+            .fill(.ultraThinMaterial)
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(LinearGradient(colors: [Color.white.opacity(0.16), Color.clear],
+                                         startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.3)))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.20), lineWidth: 1)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 23, style: .continuous)
+                    .strokeBorder(Color.black.opacity(0.15), lineWidth: 1)
+                    .padding(1)
+            )
+    }
+}
+
 // MARK: - 单条用量条
 
 private struct MeterRow: View {
@@ -331,6 +389,7 @@ private struct MeterRow: View {
     }
 }
 
+/// 玻璃质感用量条：半透明轨道 + 渐变填充 + 顶部高光 + 细描边
 private struct MeterBar: View {
     let percent: Double
     let tint: Color
@@ -338,13 +397,27 @@ private struct MeterBar: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.primary.opacity(0.08))
-                Capsule().fill(tint)
-                    .frame(width: max(6, geo.size.width * min(max(percent, 0), 100) / 100))
+                // 玻璃轨道
+                Capsule()
+                    .fill(Color.primary.opacity(0.10))
+                    .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08), lineWidth: 1))
+                // 渐变填充 + 高光
+                Capsule()
+                    .fill(LinearGradient(colors: [tint.opacity(0.92), tint],
+                                         startPoint: .top, endPoint: .bottom))
+                    .frame(width: max(6, geo.size.width * MeterBar.clamped(percent) / 100))
+                    .overlay(
+                        Capsule()
+                            .fill(LinearGradient(colors: [Color.white.opacity(0.28), Color.white.opacity(0.02)],
+                                                 startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.4)))
+                    )
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.22), lineWidth: 0.5))
             }
         }
         .frame(height: 8)
     }
+
+    static func clamped(_ p: Double) -> Double { min(max(p, 0), 100) }
 }
 
 extension View {
