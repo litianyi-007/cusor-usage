@@ -28,9 +28,10 @@ struct UsagePanelView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Image(systemName: "cursorarrow.rays")
-                .font(.title3)
-                .foregroundColor(.accentColor)
+            // 与菜单栏一致的抽象派 C 图标
+            Image(nsImage: CursorIcon.make(size: 30))
+                .resizable()
+                .frame(width: 30, height: 30)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Cursor 用量")
                     .font(.headline)
