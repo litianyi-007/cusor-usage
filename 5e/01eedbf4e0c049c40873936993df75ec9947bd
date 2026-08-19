@@ -1,0 +1,14 @@
+README.md
+  h_f7edc9edffde80 5-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "5e01eedbf4e0c049c40873936993df75ec9947bd",
+  "prompts": {},
+  "humans": {
+    "h_f7edc9edffde80": {
+      "author": "litianyi <litianyi@corp.netease.com>"
+    }
+  }
+}
