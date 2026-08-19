@@ -1,13 +1,11 @@
-# CursorUsage v0.3.0
+# CursorUsage v0.4.0
 
 ## What's new · 更新内容
 
-- 🎨 菜单栏图标改为抽象派风格字母 **C** + 实时用量百分比（渐变弧 + 几何点缀）
-- ⚙️ 设置按钮改为 **toggle**：再次点击即收起设置（与设置区内收起按钮共两处入口），并带激活态高亮
-- 🔧 修复：面板一直转圈（主队列饥饿 / URLSession 释放 / 次要请求阻塞）
-- 📍 修复：面板远离菜单栏（自定位 NSPanel，内容变化自动重排）
-- ✅ 设置无反馈修复（任何状态下都可展开设置）
-- 🛠 工程化：GitHub Actions CI + Release 自动打包（zip / dmg），VERSION 单源版本维护
+- ✨ **macOS 26 液态玻璃（Liquid Glass）面板**：原生 SwiftUI `glassEffect` —— 随壁纸取色的半透明玻璃、玻璃边缘高光、24pt 连续圆角、柔和悬浮投影；透明边距不进交互，窗口不压菜单栏；macOS 12–25 自动回退经典卡片
+- 🎨 玻璃质感用量条（半透明轨道 + 渐变填充 + 顶部高光 + 细描边）、发丝分隔线
+- 🔧 修复：液态玻璃面板外围的实心黑框（全透明无边框窗口关闭 AppKit `hasShadow`，投影由 SwiftUI 负责）
+- 🛠 CI 构建机升级 `macos-26`（液态玻璃代码需要 macOS 26 SDK 编译）
 
 ## Install · 安装
 
@@ -22,3 +20,4 @@
 
 - Unofficial tool, not affiliated with Cursor. API is reverse-engineered and may change. 非官方工具，接口可能随时变化。
 - Token 只保存在本机钥匙串（或 600 权限本地文件），绝不入仓库/上传。
+- Liquid Glass 面板需 macOS 26；低版本系统自动使用经典卡片样式。
