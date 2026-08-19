@@ -1,0 +1,16 @@
+.github/workflows/ci.yml
+  h_f7edc9edffde80 11
+.github/workflows/release.yml
+  h_f7edc9edffde80 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "1fc8e5d79dc6278620b654ef089c9c7b448e2e43",
+  "prompts": {},
+  "humans": {
+    "h_f7edc9edffde80": {
+      "author": "litianyi <litianyi@corp.netease.com>"
+    }
+  }
+}
