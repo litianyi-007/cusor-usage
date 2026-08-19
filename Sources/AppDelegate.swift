@@ -115,13 +115,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         p.level = .statusBar
         p.isOpaque = false
         p.backgroundColor = .clear
-        p.hasShadow = true
+        // 注意：hasShadow 在传统模式下保留（不透明内容 → 正常柔和投影）；
+        // 玻璃模式必须关闭 —— 全透明无边框窗口的 AppKit 投影会渲染成窗口外围一圈实心黑框，
+        // 投影由 PanelBackdrop 的 SwiftUI .shadow 负责（柔和、随玻璃形状）。
         p.isMovableByWindowBackground = false
         p.hidesOnDeactivate = false
         p.becomesKeyOnlyIfNeeded = true
         if #available(macOS 26.0, *) {
             // 液态玻璃模式：四周留透明边距容纳投影（上 10pt 贴菜单栏，左右下更宽），
             // 边距区域点击不进面板交互（GlassHostingView.hitTest 返回 nil）
+            p.hasShadow = false
             let hosting = GlassHostingView(rootView: AnyView(
                 UsagePanelView(model: model)
                     .padding(.top, 10)
@@ -132,6 +135,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             p.glassInset = 20
             p.contentView = hosting
         } else {
+            p.hasShadow = true
             p.contentViewController = NSHostingController(rootView: AnyView(UsagePanelView(model: model)))
         }
         panel = p

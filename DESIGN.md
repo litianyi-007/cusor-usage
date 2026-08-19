@@ -62,7 +62,7 @@ cursor-usage/
 
 - **视觉（macOS 26+）**：**液态玻璃（Liquid Glass）** —— 面板根视图挂 `PanelBackdrop` 修饰器：
   - `glassEffect(.regular, in: RoundedRectangle(cornerRadius: 24, style: .continuous))`（SwiftUI 原生 API，macOS 26+）：半透明玻璃随壁纸取色、自动玻璃描边与顶部高光、24pt 连续圆角；
-  - `.shadow` 柔和悬浮投影（`black 0.28 / radius 12 / y 6`）；
+  - `.shadow` 柔和悬浮投影（`black 0.28 / radius 12 / y 6`）；**必须关闭 AppKit 窗口投影（`hasShadow = false`）**——全透明无边框窗口的 `hasShadow` 会在窗口外围渲染一圈实心黑框（实测确认），投影完全交给 SwiftUI `.shadow`；
   - 窗口四周留透明边距（上 10 / 左右 20 / 下 24）容纳投影，`GlassHostingView.hitTest` 对边距返回 nil 实现**边距点击不进面板交互**；点击判定（外部点击关闭）用 `MenuPanel.glassScreenFrame`（扣除边距后的玻璃区域）；
   - 定位上移 8pt（窗口顶与菜单栏底齐平，不压菜单栏，避免吞掉相邻状态栏项点击）：玻璃顶约 10pt 悬于菜单栏下方。
   - **回退**：macOS 12–25 保持传统实心圆角卡片（`windowBackgroundColor` + 12pt 圆角）；`--screenshot` 模式因 ImageRenderer 无法合成 `glassEffect` 的 Metal 图层，改用拟真玻璃底（`.ultraThinMaterial` + 顶部高光 + 双层描边）。
