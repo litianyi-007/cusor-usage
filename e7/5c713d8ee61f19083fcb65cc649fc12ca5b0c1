@@ -1,0 +1,24 @@
+DESIGN.md
+  h_f7edc9edffde80 63-68,74
+README.md
+  h_f7edc9edffde80 22-25,40,46-48
+Sources/AppDelegate.swift
+  h_f7edc9edffde80 9-29,122-136,173-174,185,197-199,212
+Sources/Screenshot.swift
+  h_f7edc9edffde80 70,76,86
+Sources/UsagePanel.swift
+  h_f7edc9edffde80 8-11,15,20,25-33,91,278,315-363,392,400-414,419-420
+VERSION
+  h_f7edc9edffde80 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "e75c713d8ee61f19083fcb65cc649fc12ca5b0c1",
+  "prompts": {},
+  "humans": {
+    "h_f7edc9edffde80": {
+      "author": "litianyi <litianyi@corp.netease.com>"
+    }
+  }
+}
