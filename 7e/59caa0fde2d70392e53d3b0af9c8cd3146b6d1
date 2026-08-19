@@ -1,0 +1,36 @@
+.github/RELEASE_NOTES.md
+  h_f7edc9edffde80 1-24
+.github/workflows/ci.yml
+  h_f7edc9edffde80 1-23
+.github/workflows/release.yml
+  h_f7edc9edffde80 1-29
+Makefile
+  h_f7edc9edffde80 2,11-15,19-21,24-26,36,38-52
+README.md
+  h_f7edc9edffde80 28,34,54-55,57,66-72,123-136
+Sources/AppDelegate.swift
+  h_f7edc9edffde80 77-80
+Sources/CursorIcon.swift
+  h_f7edc9edffde80 1-80
+Sources/Info.plist.template
+  h_f7edc9edffde80 18,20
+Sources/PanelModel.swift
+  h_f7edc9edffde80 198-207
+Sources/Screenshot.swift
+  h_f7edc9edffde80 118,125
+Sources/UsagePanel.swift
+  h_f7edc9edffde80 284-286,289
+VERSION
+  h_f7edc9edffde80 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "7e59caa0fde2d70392e53d3b0af9c8cd3146b6d1",
+  "prompts": {},
+  "humans": {
+    "h_f7edc9edffde80": {
+      "author": "litianyi <litianyi@corp.netease.com>"
+    }
+  }
+}
