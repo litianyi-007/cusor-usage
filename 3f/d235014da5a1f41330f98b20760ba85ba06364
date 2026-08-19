@@ -1,0 +1,30 @@
+DESCRIPTION.md
+  h_f7edc9edffde80 1-67
+DESIGN.md
+  h_f7edc9edffde80 20-23,26,29,31-34
+LICENSE
+  h_f7edc9edffde80 1-21
+Makefile
+  h_f7edc9edffde80 8,10,16-27,33-37,39
+README.md
+  h_f7edc9edffde80 1,3,5,7,9-10,12,14,16-41,46-49,52-61,64,66,68,70-81,83-84,86,88-93,95-97,99,101,103-110,113-123,125-128
+Sources/Info.plist
+  h_f7edc9edffde80 13-14,18,20
+Sources/PanelModel.swift
+  h_f7edc9edffde80 47-51
+Sources/Screenshot.swift
+  h_f7edc9edffde80 1-206
+Sources/main.swift
+  h_f7edc9edffde80 10-33,39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "3fd235014da5a1f41330f98b20760ba85ba06364",
+  "prompts": {},
+  "humans": {
+    "h_f7edc9edffde80": {
+      "author": "litianyi <litianyi@corp.netease.com>"
+    }
+  }
+}
