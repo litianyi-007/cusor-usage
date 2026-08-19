@@ -17,17 +17,21 @@
 cursor-usage/
 ├── RESEARCH.md              调研结论（接口协议/响应解析/token 存放）
 ├── DESIGN.md                本文件
-├── README.md                构建/启动/验证说明
-├── Makefile                 build / app / selfcheck / run 目标
+├── README.md                双语说明（截图/功能/启动/FAQ）
+├── DESCRIPTION.md           双语产品描述
+├── LICENSE                  MIT
+├── Makefile                 build / app / selfcheck / screenshots / run 目标
 ├── run.sh                   一键：构建 + 打包 + open
 ├── Sources/
-│   ├── main.swift           入口：--selfcheck 无头自测；否则启动 NSApplication
+│   ├── main.swift           入口：--selfcheck / --screenshot / --icon / --icns / GUI
 │   ├── SelfCheck.swift      无头自测：token 解析 → 真实 API → 钥匙串/文件存取
 │   ├── AppDelegate.swift    状态栏图标、popover 开关、后台定时刷新
-│   ├── CursorAPI.swift      Connect JSON 客户端 + Codable 模型（GetCurrentPeriodUsage / GetPlanInfo）
+│   ├── CursorAPI.swift      Connect JSON 客户端 + Codable 模型（GetCurrentPeriodUsage / GetPlanInfo / GetAggregatedUsageEvents）
 │   ├── TokenStore.swift     钥匙串(首选) + 600 配置文件(兜底) + Cursor 本地只读自动读取
-│   ├── PanelModel.swift     面板状态机（@MainActor ObservableObject）
-│   └── UsagePanel.swift     SwiftUI：用量面板（Cursor/Other 双池 + 合计 + 周期 + 设置区）
+│   ├── PanelModel.swift     面板状态机（@MainActor ObservableObject）+ 双池美元拆分
+│   ├── UsagePanel.swift     SwiftUI：用量面板（Cursor/Other 双池 + 合计 + 周期 + 设置区）
+│   └── Screenshot.swift     产品截图（--screenshot）与 App 图标生成（--icon / --icns）
+├── docs/screenshots/        产品截图（真实数据渲染，README 引用）
 └── build/                   （生成物，已 gitignore）
 ```
 

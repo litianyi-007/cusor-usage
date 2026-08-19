@@ -44,6 +44,11 @@ final class PanelModel: ObservableObject {
         Task { await fetch() }
     }
 
+    /// 供截图/自测模式直接拉取（refresh 的可等待版本）
+    func loadData() async {
+        await fetch()
+    }
+
     private func fetch() async {
         let resolved = store.resolveToken()
         guard let token = resolved.token, !token.isEmpty else {

@@ -1,90 +1,128 @@
-# CursorUsage — macOS 菜单栏 Cursor 用量查看器
+# CursorUsage 🖱️📊
 
-原生 Swift 实现的 macOS 菜单栏常驻小程序：点击菜单栏图标弹出用量面板，实时拉取
-`https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage`，
-同时展示 **Cursor Models**（auto 池）与 **Other Models**（api 池）两个用量池。
-内置 token 设置入口（保存到 macOS 钥匙串）。
+**macOS 菜单栏 Cursor 用量实时查看器 · A macOS menu bar monitor for your Cursor usage**
 
-> ⚠️ 非官方工具，接口为逆向调研所得（见 [RESEARCH.md](RESEARCH.md)），字段可能随 Cursor 版本变化。
-> 本项目不隶属于 Cursor，不收集任何数据，token 只存本机。
+Click the menu bar icon to see your current billing-cycle usage at a glance — **Cursor Models** and **Other Models** pools side by side, in dollars and percent.
 
-## 功能
+点击菜单栏图标，一眼看清当前计费周期的用量：**Cursor Models** 与 **Other Models** 两个用量池的美元花费与百分比。
 
-- 菜单栏常驻（`LSUIElement`，无 Dock 图标），图标旁实时显示合计用量百分比（如 `15%`）
-- 用量面板：
-  - **Cursor Models**：`planUsage.autoPercentUsed` + **美元花费**（`GetAggregatedUsageEvents` 按 `autoBucketModels` 归属求和，实测合计 == `totalSpend`）
-  - **Other Models**：`planUsage.apiPercentUsed` + 美元花费
-  - **Included total**：`planUsage.totalPercentUsed` + 已用/限额/剩余金额（美分）
-  - **Top 模型**（按花费前 3）、计费周期起止与“N 天后重置”、按量付费额度（有值时）
-- 刷新：打开面板即拉最新，面板打开期间每 60s 自动刷新，后台每 5min 刷新
-- 设置（面板内 ⚙️）：
-  - 粘贴 accessToken → 保存到 macOS 钥匙串（加密）
-  - 自动读取 Cursor 本地登录态（默认，无需手动维护）
-  - 清除手动 token
+> ⚠️ **Unofficial tool** — not affiliated with Cursor. The API is reverse-engineered (see [RESEARCH.md](RESEARCH.md)) and may change without notice.
+> **非官方工具**，不隶属于 Cursor。接口为逆向调研所得（见 [RESEARCH.md](RESEARCH.md)），可能随时变化。
 
-## 环境要求
+---
 
-- macOS 12+（开发机为 macOS 26.6）
-- Xcode 命令行工具（`swiftc`，用于本地构建）
-- 本机已登录 Cursor 桌面端（自动读取模式需要）；或手动粘贴 token
+## Screenshots · 截图
 
-## 构建 / 启动
+| Usage panel · 用量面板 | Token settings · Token 设置 | Menu bar · 菜单栏 |
+|---|---|---|
+| ![usage panel](docs/screenshots/panel.png) | ![token settings](docs/screenshots/panel-settings.png) | ![menubar](docs/screenshots/menubar.png) |
+
+*Screenshots rendered from real data on this machine (Ultra plan). · 截图为本机真实数据渲染（Ultra 套餐）。*
+
+---
+
+## Features · 功能
+
+| English | 中文 |
+|---|---|
+| 🟦 **Menu bar resident** — no Dock icon (`LSUIElement`), shows live total usage % next to the icon | 🟦 **菜单栏常驻**——无 Dock 图标，图标旁实时显示合计用量百分比 |
+| ⚖️ **Two pools side by side**: Cursor Models (`autoPercentUsed`) and Other Models (`apiPercentUsed`), each with **exact dollar spend** derived from `GetAggregatedUsageEvents` (verified: sum == `planUsage.totalSpend`) | ⚖️ **双池并列展示**：Cursor Models（`autoPercentUsed`）与 Other Models（`apiPercentUsed`），各池**精确美元花费**由 `GetAggregatedUsageEvents` 按模型归属求和（实测合计 == `totalSpend`） |
+| 💰 **Included total** — used / limit / remaining in USD (cents ÷ 100) + combined % | 💰 **合计用量**——已用 / 限额 / 剩余美元金额 + 综合百分比 |
+| 🏆 **Top models by spend** (top 3) | 🏆 **Top 模型**（按花费前 3） |
+| 📅 **Billing cycle** start → end, "resets in N days" | 📅 **计费周期**起止与“N 天后重置” |
+| 🔄 **Auto refresh** — on open, every 60 s while open, every 5 min in background | 🔄 **自动刷新**——打开即拉取、打开期间每 60 s、后台每 5 min |
+| 🔐 **Token settings** — save to **macOS Keychain**, or auto-read Cursor's local login (default), never stored in this repo | 🔐 **Token 设置**——保存到 **macOS 钥匙串**，或自动读取 Cursor 本地登录态（默认），绝不写入仓库 |
+| 🛡️ **Zero dependencies** — pure Swift (AppKit + SwiftUI), no Electron, no runtime deps | 🛡️ **零依赖**——纯 Swift（AppKit + SwiftUI），无 Electron、无运行时依赖 |
+
+---
+
+## Quick Start · 快速开始
+
+Requirements · 环境要求：macOS 12+, Xcode command line tools (`swiftc`), and Cursor signed in on this Mac (for auto token) or a manual token.
 
 ```bash
 cd /Users/litianyi/Documents/Code/_ai-goods/cusor-usage
 
-make build     # 仅编译二进制 build/CursorUsage
-make selfcheck # 无头自测：真实 token 解析 + 真实 API + 钥匙串/文件存取
-./run.sh       # 构建 + 打包 .app + 启动（菜单栏出现图标）
+make selfcheck   # headless check: token + real API + keychain/file stores
+                 # 无头自测：token 解析 + 真实 API + 钥匙串/文件存取
+./run.sh         # build + package + launch the menu bar app
+                 # 构建 + 打包 + 启动菜单栏应用
 ```
 
+| Command · 命令 | What it does · 作用 |
+|---|---|
+| `make build` | Compile `build/CursorUsage` |
+| `make app` | Bundle `build/CursorUsage.app` (with generated icon) |
+| `make selfcheck` | Headless verification with **real** API calls |
+| `make screenshots` | Render product screenshots to `docs/screenshots/` |
+| `make run` | Build & launch via `open` |
+| `./run.sh` | One-shot: build + bundle + launch |
+
+To quit: click the power button at the panel bottom, or `pkill CursorUsage`.
 退出：点面板底部电源键，或 `pkill CursorUsage`。
 
-## token 从哪来、存哪里
+---
 
-| 来源 | 说明 |
+## How It Works · 工作原理
+
+Protocol: **Connect RPC v1 (JSON over HTTP)** — not gRPC-web.
+
+```
+POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage
+Headers: Authorization: Bearer <token> · Content-Type: application/json
+         Connect-Protocol-Version: 1
+Body: {}
+```
+
+| Pool · 池 | Percent field · 百分比字段 | Dollar source · 美元来源 |
+|---|---|---|
+| Cursor Models | `planUsage.autoPercentUsed` | `GetAggregatedUsageEvents` sum of models in `autoBucketModels` |
+| Other Models | `planUsage.apiPercentUsed` | …models not in `autoBucketModels` (claude-*/gpt-*) |
+| Included total | `planUsage.totalPercentUsed` | `planUsage.totalSpend / limit / remaining` (cents) |
+
+Full research (protocol, fields, token sources, uncertainties) → [RESEARCH.md](RESEARCH.md) · 完整调研见 [RESEARCH.md](RESEARCH.md)
+Design & architecture → [DESIGN.md](DESIGN.md) · 实现方案见 [DESIGN.md](DESIGN.md)
+
+---
+
+## Token & Security · Token 与安全
+
+| Source · 来源 | Notes · 说明 |
 |---|---|
-| 自动读取（默认） | `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` 的 `cursorAuth/accessToken`（JWT，约 2 个月有效），**只读打开，不回写** |
-| 手动粘贴 | 设置里粘贴 → **macOS 钥匙串**（`com.cursorusage.menubar`，`kSecAttrAccessibleAfterFirstUnlock`）；钥匙串不可用时兜底写入 `~/Library/Application Support/CursorUsage/config.json`（chmod 600，仓库外） |
+| Auto-read (default) · 自动读取（默认） | `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` → `cursorAuth/accessToken` (JWT, ~2 months validity), **read-only**, never written back |
+| Manual · 手动 | Paste in ⚙️ settings → saved to **macOS Keychain** (`com.cursorusage.menubar`, `kSecAttrAccessibleAfterFirstUnlock`); fallback file `~/Library/Application Support/CursorUsage/config.json` (chmod 600, outside repo) |
 
-- token **绝不写入仓库**（`.gitignore` 已排除 `build/`、`token.txt`、`*.token`；配置在仓库外路径）
-- 代码不打印 token；请求仅走 HTTPS
+- Token is **never committed** to the repo (`.gitignore` covers `build/`, `token.txt`, `*.token`; config lives outside the repo) · token 绝不入仓库
+- The app never prints the token · 应用不打印 token
+- HTTPS only · 仅走 HTTPS
 
-## 验证步骤
+---
 
-1. **无头自测**（推荐先跑）：
+## FAQ · 常见问题
 
-   ```bash
-   make selfcheck
-   ```
+- **“未找到 accessToken” / “No accessToken found”** — Cursor isn't signed in on this Mac, or `state.vscdb` is elsewhere; paste a token in ⚙️ settings. 本机未登录 Cursor 或状态库路径不同；在设置里手动粘贴。
+- **HTTP 401** — token expired/invalid; click “自动读取 Cursor 本地” or paste a new one. token 失效；重新自动读取或粘贴新 token。
+- **“响应中没有 planUsage”** — account shape differs (e.g. legacy request-based plan); the panel degrades gracefully. 账户形态不同（如旧版按请求计费），面板按缺失字段降级展示。
+- **Keychain save fails** — rare restricted environment; automatically falls back to the 600-perm local file. 极少数受限环境；自动回退到 600 权限本地文件。
 
-   期望输出（本机实测结果）：`token 来源：Cursor 本地自动读取`、`GetCurrentPeriodUsage HTTP 200`、
-   `Cursor Models (autoPercentUsed): …%`、`Other Models (apiPercentUsed): …%`、
-   `GetAggregatedUsageEvents: … totalCents 合计 $… (planUsage.totalSpend $…, 误差 $…)`、
-   `池拆分: Cursor Models $… / Other Models $…`、`钥匙串 写入/读取/清除 正常`、`exit=0`。
-   任何 `[FAIL]` 即有问题。
+---
 
-2. **界面验证**：`./run.sh` → 菜单栏出现图标（含百分比）→ 点击弹出面板：
-   - 能看到两条用量条（Cursor Models / Other Models）+ 合计与金额、周期
-   - ⚙️ 设置：粘贴 token → 保存 → 面板立即刷新；或直接点“自动读取 Cursor 本地”
-   - 点其他位置面板收起；再点图标重新弹出并拉取最新
-
-## 常见问题
-
-- **提示“未找到 accessToken”**：本机没登录 Cursor，或 state.vscdb 路径不同；去 ⚙️ 手动粘贴 token。
-- **HTTP 401**：token 过期/失效；重新“自动读取”或粘贴新 token。
-- **面板显示“响应中没有 planUsage”**：账户形态与 Ultra 不同（如旧版 request-based 账户），按缺失字段降级展示。
-- **钥匙串保存失败**：极少数受限环境；会自动回退到 600 权限本地文件。
-
-## 目录结构
+## Project Structure · 项目结构
 
 ```
-Sources/main.swift       入口（--selfcheck / GUI）
-Sources/AppDelegate.swift 状态栏图标 + popover + 定时刷新
-Sources/CursorAPI.swift  Connect JSON 客户端 + Codable 模型
-Sources/TokenStore.swift 钥匙串 / 600 文件 / Cursor 本地只读
-Sources/PanelModel.swift 面板状态机（@MainActor）
-Sources/UsagePanel.swift SwiftUI 面板（双池用量条 + 设置区）
-Sources/Info.plist        .app 打包配置（LSUIElement）
-Makefile / run.sh         构建、自测、启动
+Sources/main.swift        entry: --selfcheck / --screenshot / --icon / --icns / GUI
+Sources/AppDelegate.swift status bar icon + popover + timers
+Sources/CursorAPI.swift   Connect JSON client + Codable models
+Sources/TokenStore.swift  Keychain / 600-perm file / Cursor local (read-only)
+Sources/PanelModel.swift  panel state machine (@MainActor)
+Sources/UsagePanel.swift  SwiftUI panel (two-pool meters + settings)
+Sources/Screenshot.swift  product screenshots + app icon generator
+Sources/SelfCheck.swift   headless verification
+Sources/Info.plist        .app bundle config (LSUIElement)
+Makefile / run.sh         build · test · package · launch
+docs/screenshots/         product screenshots
 ```
+
+## License · 许可
+
+MIT — see [LICENSE](LICENSE).
