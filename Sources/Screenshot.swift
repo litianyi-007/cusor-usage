@@ -5,6 +5,47 @@ import SwiftUI
 /// 用法：CursorUsage --screenshot <输出目录> [--with-settings]
 enum Screenshot {
 
+    // MARK: - 同步桥（供同步顶层 main 调用；内部跳到 MainActor 执行）
+
+    /// 等待 @MainActor 任务完成：主线程阻塞期间持续泵主 run loop，
+    /// 否则 MainActor 任务永远无法执行（死锁）。
+    private static func waitMainActor(_ timeout: TimeInterval, _ work: @escaping () async -> Void) {
+        let sem = DispatchSemaphore(value: 0)
+        Task { @MainActor in
+            await work()
+            sem.signal()
+        }
+        let deadline = Date().addingTimeInterval(timeout)
+        while sem.wait(timeout: .now() + 0.05) == .timedOut {
+            if Date() > deadline { break }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        }
+    }
+
+    static func screenshotSync() -> Int32 {
+        var code: Int32 = 1
+        waitMainActor(120) { @MainActor in
+            code = await Screenshot.run()
+        }
+        return code
+    }
+
+    static func iconSync(to url: URL) -> Bool {
+        var ok = false
+        waitMainActor(30) { @MainActor in
+            ok = Screenshot.renderIcon(to: url)
+        }
+        return ok
+    }
+
+    static func icnsSync(to url: URL) -> Bool {
+        var ok = false
+        waitMainActor(30) { @MainActor in
+            ok = Screenshot.renderIcns(to: url)
+        }
+        return ok
+    }
+
     @MainActor
     static func run() async -> Int32 {
         let args = CommandLine.arguments
@@ -42,7 +83,7 @@ enum Screenshot {
         return ok ? 0 : 1
     }
 
-    /// 深色桌面背景 + 带阴影的面板卡片
+    /// 深色桌面背景 + 面板卡片（面板视图自带圆角背景，这里只加投影）
     @MainActor
     private static func render<Content: View>(view: Content, to url: URL, size: CGSize) -> Bool {
         let content = ZStack {
@@ -51,9 +92,6 @@ enum Screenshot {
                          Color(red: 0.04, green: 0.05, blue: 0.08)],
                 startPoint: .topLeading, endPoint: .bottomTrailing)
             view
-                .background(RoundedRectangle(cornerRadius: 14)
-                    .fill(Color(nsColor: .windowBackgroundColor)))
-                .clipShape(RoundedRectangle(cornerRadius: 14))
                 .shadow(color: .black.opacity(0.5), radius: 32, y: 16)
         }
         .frame(width: size.width, height: size.height)

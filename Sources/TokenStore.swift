@@ -161,15 +161,31 @@ final class TokenStore {
     // MARK: - 解析（优先级：手动钥匙串 → 兜底文件 → Cursor 本地自动）
 
     func resolveToken() -> (token: String?, source: Source, email: String?, plan: String?) {
+        PanelModel.diagnose("resolveToken: 开始")
         if let kc = loadTokenFromKeychain(), !kc.isEmpty {
+            PanelModel.diagnose("resolveToken: 命中钥匙串")
             return (kc, .manual, nil, nil)
         }
+        PanelModel.diagnose("resolveToken: 钥匙串未命中，查本地文件")
         if let fileToken = loadTokenFromFile(), !fileToken.isEmpty {
+            PanelModel.diagnose("resolveToken: 命中本地文件")
             return (fileToken, .manual, nil, nil)
         }
+        PanelModel.diagnose("resolveToken: 文件未命中，读 Cursor 本地状态库")
         if let local = readCursorLocalAuth(), let t = local.accessToken, !t.isEmpty {
+            PanelModel.diagnose("resolveToken: 命中 Cursor 本地")
             return (t, .auto, local.email, local.membershipType)
         }
+        PanelModel.diagnose("resolveToken: 全部未命中")
         return (nil, .none, nil, nil)
+    }
+}
+
+// MARK: - 诊断日志（进程内共用）
+
+extension PanelModel {
+    /// 极简诊断日志：只走 NSLog（不依赖文件写入，避免权限问题掩盖真相）
+    nonisolated static func diagnose(_ message: String) {
+        NSLog("[CursorUsage:diag] %@", message)
     }
 }

@@ -33,6 +33,39 @@ final class PanelModel: ObservableObject {
     private let api = CursorAPI()
     private let store = TokenStore()
 
+    /// 防止并发拉取（打开面板 + 定时器 + 启动可能同时触发）
+    private var isFetching = false
+    /// 日志文件（可用环境变量 CURSORUSAGE_LOG 覆盖）
+    static var logFileURL: URL {
+        if let env = ProcessInfo.processInfo.environment["CURSORUSAGE_LOG"], !env.isEmpty {
+            return URL(fileURLWithPath: env)
+        }
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
+        return base.appendingPathComponent("CursorUsage/app.log")
+    }
+
+    private func log(_ message: String) {
+        let line = "[\(Self.nowText())] \(message)"
+        NSLog("%@", line)
+        // 日志失败不影响主流程
+        try? FileManager.default.createDirectory(at: Self.logFileURL.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        if let handle = try? FileHandle(forWritingTo: Self.logFileURL) {
+            handle.seekToEndOfFile()
+            handle.write(Data((line + "\n").utf8))
+            try? handle.close()
+        } else {
+            try? Data((line + "\n").utf8).write(to: Self.logFileURL, options: .atomic)
+        }
+    }
+
+    private static func nowText() -> String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
+        return f.string(from: Date())
+    }
+
     var totalPercent: Double? { usage?.planUsage?.totalPercentUsed }
     var autoPercent: Double? { usage?.planUsage?.autoPercentUsed }
     var apiPercent: Double? { usage?.planUsage?.apiPercentUsed }
@@ -50,8 +83,19 @@ final class PanelModel: ObservableObject {
     }
 
     private func fetch() async {
+        PanelModel.diagnose("fetch: 进入")
+        guard !isFetching else {
+            log("fetch: 已有拉取在进行，跳过本次")
+            return
+        }
+        isFetching = true
+        defer { isFetching = false }
+
+        let t0 = Date()
         let resolved = store.resolveToken()
+        PanelModel.diagnose("fetch: resolveToken 完成 (source=\(resolved.source.rawValue))")
         guard let token = resolved.token, !token.isEmpty else {
+            log("fetch: 未找到 accessToken")
             phase = .failed("未找到 accessToken：点击底部 ⚙️ 设置粘贴 token，或先登录 Cursor 桌面端后点“自动读取 Cursor 本地”。")
             statusTitle = ""
             return
@@ -63,26 +107,50 @@ final class PanelModel: ObservableObject {
         }
         email = resolved.email
         membership = resolved.plan
+        log("fetch: 开始 (source=\(resolved.source.rawValue), email=\(resolved.email ?? "?"))")
 
+        // 主数据：带硬超时（25s），确保绝不让面板永远停在 loading
+        let u: PeriodUsage
         do {
-            let u = try await api.fetchPeriodUsage(token: token)
-            usage = u
-            if planName == nil {
-                planName = try? await api.fetchPlanInfo(token: token)?.planInfo?.planName
-            }
-            // 拉取聚合用量以计算两个池的美元拆分；失败不阻塞主数据
-            if let agg = try? await api.fetchAggregatedUsageEvents(token: token) {
-                aggregations = agg
-                computePools(usage: u, agg: agg)
-            }
-            lastUpdated = Date()
-            phase = .loaded
-            if let total = u.planUsage?.totalPercentUsed {
-                statusTitle = String(format: "%.0f%%", total)
+            u = try await withThrowingTaskGroup(of: PeriodUsage.self) { group in
+                group.addTask { try await self.api.fetchPeriodUsage(token: token) }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: 25_000_000_000)
+                    throw CursorAPIError.timeout
+                }
+                let first = try await group.next()!
+                group.cancelAll()
+                return first
             }
         } catch {
+            log("fetch: 主请求失败 -> \(error.localizedDescription) (耗时 \(Int(-t0.timeIntervalSinceNow))s)")
             phase = .failed("请求失败：\(error.localizedDescription)")
             statusTitle = ""
+            return
+        }
+        log("fetch: 主请求成功 (耗时 \(Int(-t0.timeIntervalSinceNow))s)")
+
+        // 主数据先落地，保证面板立即从 loading 变成 loaded
+        usage = u
+        lastUpdated = Date()
+        phase = .loaded
+        if let total = u.planUsage?.totalPercentUsed {
+            statusTitle = String(format: "%.0f%%", total)
+        }
+
+        // 次要数据（planName / 聚合拆分）fire-and-forget：失败或超时绝不影响主流程
+        if planName == nil {
+            Task {
+                if let info = try? await self.api.fetchPlanInfo(token: token)?.planInfo {
+                    self.planName = info.planName
+                }
+            }
+        }
+        Task {
+            if let agg = try? await self.api.fetchAggregatedUsageEvents(token: token) {
+                self.aggregations = agg
+                self.computePools(usage: u, agg: agg)
+            }
         }
     }
 
@@ -124,24 +192,29 @@ final class PanelModel: ObservableObject {
         settingsToken = ""
         settingsMessage = ""
         showSettings = true
+        log("设置: 展开设置区")
     }
 
     func saveManualToken() {
         let t = settingsToken.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else {
             settingsMessage = "token 为空，请粘贴后再保存"
+            log("设置: 保存失败，token 为空")
             return
         }
         if store.saveTokenToKeychain(t) {
             settingsMessage = "已保存到 macOS 钥匙串 ✓（加密存储）"
             settingsToken = ""
+            log("设置: 已保存到钥匙串")
             refresh()
         } else if store.saveTokenToFile(t) {
             settingsMessage = "钥匙串不可用，已写入本地 600 权限配置文件（仓库外）"
             settingsToken = ""
+            log("设置: 钥匙串失败，已写入本地配置文件")
             refresh()
         } else {
             settingsMessage = "保存失败：钥匙串与本地文件都不可用"
+            log("设置: 保存失败（钥匙串与文件都不可用）")
         }
     }
 
@@ -149,6 +222,7 @@ final class PanelModel: ObservableObject {
         let kc = store.clearTokenFromKeychain()
         let file = store.clearTokenFromFile()
         settingsMessage = (kc || file) ? "已清除手动 token，将回退到“Cursor 本地自动读取”" : "当前没有手动 token 可清除"
+        log("设置: 清除手动 token (keychain=\(kc), file=\(file))")
         refresh()
     }
 }

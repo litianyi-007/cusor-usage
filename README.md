@@ -104,6 +104,7 @@ Design & architecture → [DESIGN.md](DESIGN.md) · 实现方案见 [DESIGN.md](
 - **HTTP 401** — token expired/invalid; click “自动读取 Cursor 本地” or paste a new one. token 失效；重新自动读取或粘贴新 token。
 - **“响应中没有 planUsage”** — account shape differs (e.g. legacy request-based plan); the panel degrades gracefully. 账户形态不同（如旧版按请求计费），面板按缺失字段降级展示。
 - **Keychain save fails** — rare restricted environment; automatically falls back to the 600-perm local file. 极少数受限环境；自动回退到 600 权限本地文件。
+- **Troubleshooting / 排障** — runtime logs are written to `~/Library/Application Support/CursorUsage/app.log` (also NSLog); check them if the panel misbehaves. 运行日志在 `~/Library/Application Support/CursorUsage/app.log`（同时走 NSLog），面板异常时可查看。
 
 ---
 

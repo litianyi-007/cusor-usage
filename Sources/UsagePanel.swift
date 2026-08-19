@@ -10,11 +10,18 @@ struct UsagePanelView: View {
             header
             Divider().padding(.vertical, 10)
             content
+            if model.showSettings {
+                settingsSection
+            }
             Divider().padding(.vertical, 10)
             footer
         }
         .padding(16)
         .frame(width: 340)
+        .background(RoundedRectangle(cornerRadius: 12)
+            .fill(Color(nsColor: .windowBackgroundColor)))
+        .overlay(RoundedRectangle(cornerRadius: 12)
+            .stroke(Color.primary.opacity(0.08), lineWidth: 1))
     }
 
     // MARK: 头部
@@ -84,9 +91,6 @@ struct UsagePanelView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                }
-                if model.showSettings {
-                    settingsSection
                 }
             } else {
                 Text("暂无数据，点击刷新")

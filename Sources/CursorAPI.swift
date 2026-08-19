@@ -87,6 +87,7 @@ struct ConnectErrorEnvelope: Codable {
 enum CursorAPIError: LocalizedError {
     case httpStatus(Int, String)
     case invalidResponse
+    case timeout
 
     var errorDescription: String? {
         switch self {
@@ -98,6 +99,8 @@ enum CursorAPIError: LocalizedError {
             return "HTTP \(code) \(preview)"
         case .invalidResponse:
             return "响应不是合法 JSON"
+        case .timeout:
+            return "请求超时(25s)"
         }
     }
 }
@@ -107,8 +110,15 @@ enum CursorAPIError: LocalizedError {
 struct CursorAPI {
     let baseURL = URL(string: "https://api2.cursor.sh")!
 
-    /// ephemeral:不落盘磁盘缓存(菜单栏常驻程序避免写 ~/Library/Caches)
-    private var session: URLSession { URLSession(configuration: .ephemeral) }
+    /// 单例 session：ephemeral 不落盘缓存；必须长期持有——每次新建的 URLSession 若在
+    /// 请求完成前被释放，async/await 的 continuation 可能永远不恢复(表现为面板一直转圈)。
+    private let session: URLSession = {
+        let cfg = URLSessionConfiguration.ephemeral
+        cfg.timeoutIntervalForRequest = 20
+        cfg.timeoutIntervalForResource = 25
+        cfg.waitsForConnectivity = false
+        return URLSession(configuration: cfg)
+    }()
 
     private func connectRequest(path: String, token: String) -> URLRequest {
         var req = URLRequest(url: baseURL.appendingPathComponent(path))
