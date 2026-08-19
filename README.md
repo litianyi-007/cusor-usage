@@ -1,171 +1,90 @@
-# Cursor Usage — macOS 菜单栏用量插件
+# CursorUsage — macOS 菜单栏 Cursor 用量查看器
 
-在 macOS System Bar(菜单栏)常驻显示 Cursor 当前计费周期用量,点击图标弹出面板,
-同时展示 **Cursor models** 与 **Other models** 两个用量池;设置入口可保存 / 修改 accessToken
-(存 macOS 钥匙串,绝不入库)。
+原生 Swift 实现的 macOS 菜单栏常驻小程序：点击菜单栏图标弹出用量面板，实时拉取
+`https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage`，
+同时展示 **Cursor Models**（auto 池）与 **Other Models**（api 池）两个用量池。
+内置 token 设置入口（保存到 macOS 钥匙串）。
 
----
+> ⚠️ 非官方工具，接口为逆向调研所得（见 [RESEARCH.md](RESEARCH.md)），字段可能随 Cursor 版本变化。
+> 本项目不隶属于 Cursor，不收集任何数据，token 只存本机。
 
-## 一、调研结论
+## 功能
 
-### 1.1 接口协议:Connect RPC v1(JSON over HTTP)
+- 菜单栏常驻（`LSUIElement`，无 Dock 图标），图标旁实时显示合计用量百分比（如 `15%`）
+- 用量面板：
+  - **Cursor Models**：`planUsage.autoPercentUsed` + **美元花费**（`GetAggregatedUsageEvents` 按 `autoBucketModels` 归属求和，实测合计 == `totalSpend`）
+  - **Other Models**：`planUsage.apiPercentUsed` + 美元花费
+  - **Included total**：`planUsage.totalPercentUsed` + 已用/限额/剩余金额（美分）
+  - **Top 模型**（按花费前 3）、计费周期起止与“N 天后重置”、按量付费额度（有值时）
+- 刷新：打开面板即拉最新，面板打开期间每 60s 自动刷新，后台每 5min 刷新
+- 设置（面板内 ⚙️）：
+  - 粘贴 accessToken → 保存到 macOS 钥匙串（加密）
+  - 自动读取 Cursor 本地登录态（默认，无需手动维护）
+  - 清除手动 token
 
-官方**没有**公开文档(公开的是 Enterprise 级 Admin/Analytics API,与本接口无关)。协议结论来自:
-本机**实机请求验证**(2026-08-19,HTTP 200)+ 社区逆向文档
-([OpenTokenUsage / Cursor provider](https://github.com/PowerUserZ/OpenTokenUsage/blob/main/docs/providers/cursor.md))
-+ [Cursor-Usage-Status 扩展源码](https://github.com/ClearMeasureLabs/Cursor-Usage-Status)。
+## 环境要求
 
-| 项 | 值 |
-|---|---|
-| 端点 | `POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage` |
-| 协议 | **Connect RPC v1(JSON over HTTP)** —— 不是 gRPC-web 二进制帧,不是 REST;普通 JSON POST 即可 |
-| 请求头 | `Authorization: Bearer <accessToken>`(必需)<br>`Content-Type: application/json`(必需)<br>`Connect-Protocol-Version: 1`(必需) |
-| 请求体 | `{}`(proto 可选字段 teamId / includePooledUsage 等,个人账户默认即可) |
-| 错误 | 非 2xx 返回 Connect 错误 JSON,如 401:`{"code":"unauthenticated","message":"Error",...}` |
+- macOS 12+（开发机为 macOS 26.6）
+- Xcode 命令行工具（`swiftc`，用于本地构建）
+- 本机已登录 Cursor 桌面端（自动读取模式需要）；或手动粘贴 token
 
-同一服务(同鉴权方式)下还有:
-`GetPlanInfo`(套餐名/价格)、`GetFilteredUsageEvents`(逐条事件,分页 `{"page":N,"pageSize":M}`)、
-`GetAggregatedUsageEvents`(按模型聚合,`{}` 即可)。
-实测 `GET /api/usage/summary` 在 api2.cursor.sh 上 **404**(那是 cursor.com 网页端、Cookie 鉴权的接口,不在本工具范围)。
-
-### 1.2 响应解析:金额与百分比都在 `planUsage`
-
-实机响应(已核对字段,金额单位**分** cents,÷100 = 美元;时间戳为 unix 毫秒字符串):
-
-```jsonc
-{
-  "billingCycleStart": "1786904477000",  "billingCycleEnd": "1789582877000",
-  "planUsage": {
-    "totalSpend": 18883,  "includedSpend": 18883,  "remaining": 21117,  "limit": 40000,
-    "remainingBonus": false,
-    "autoPercentUsed": 2.7715,   // Cursor models 池 %
-    "apiPercentUsed": 26.68,     // Other models 池 %
-    "totalPercentUsed": 7.5532   // 综合 %
-  },
-  "spendLimitUsage": { "limitType": "user" },        // 按需额度;本账户未启用,无金额字段
-  "displayThreshold": 200, "enabled": true,
-  "displayMessage": "You've used 47% of your included usage",
-  "autoModelSelectedDisplayMessage": "...", "namedModelSelectedDisplayMessage": "...",
-  "autoBucketModels": ["default","composer-2.5","cursor-grok-4.5", ...]   // Cursor 第一方模型名单
-}
-```
-
-### 1.3 「Cursor models vs Other models」映射(关键)
-
-Cursor 界面/文档把用量分成两个池。`GetCurrentPeriodUsage` 响应里没有字面量 `cursorModels/otherModels`
-字段,但权威映射来自 Cursor 应用自身代码(`firstPartyPercentUsed = planUsage.autoPercentUsed`,
-`thirdPartyPercentUsed = planUsage.apiPercentUsed`),与 [omarchy agent-usage-cursor 收集器](https://github.com/basecamp/omarchy/pull/7087) 一致:
-
-| 面板项 | 字段 | 含义 |
-|---|---|---|
-| **Cursor models** | `planUsage.autoPercentUsed` | Auto 桶(= `autoBucketModels` 名单)用量 % |
-| **Other models** | `planUsage.apiPercentUsed` | 指定第三方模型(API)用量 % |
-| Other 池金额 | `limit`(额度)/ `includedSpend`(已用)/ `remaining`(剩余) | 与 `displayMessage` 口径一致 |
-| 综合用量 | `totalPercentUsed` | 跨池加权综合 % |
-
-**两个池的美元拆分**:接口可选字段 `autoSpend/apiSpend` 本机实测**未填充**(null),因此本工具用
-`GetAggregatedUsageEvents` 的 `totalCents` 按 `autoBucketModels` 归属求和得到。
-**验证**:本机实测 aggregations 的 totalCents 之和 = 18882.90 分 ≈ `planUsage.totalSpend` 18883 分(误差 <0.01 分)。
-归属规则:名单精确命中;Cursor 第一方模型另有前缀启发式(`cursor-` / `composer` / `vega` / `grok`),
-与实测模型名(cursor-grok-4.6-*、composer-* 等)一致;第三方(claude-* / gpt-*)归 Other 池。
-
-> 不确定点(如实标注):
-> - `autoPercentUsed` / `apiPercentUsed` 的分母(权重口径)未公开,故 `totalPercentUsed` ≠ 两者之和
->   (实测 7.55% vs 2.77% + 26.68%);% 直接透传服务端值。
-> - `autoSpend/apiSpend/autoLimit/apiLimit` 为可选字段,本账户未返回;面板优先用接口字段,缺失时用聚合拆分。
-> - `GetFilteredUsageEvents` 已实测可用(71 条事件),面板当前用聚合接口做池拆分,未做逐条明细页。
-> - 协议为「Connect RPC v1 JSON」;同一端点理论上也接受 gRPC-web 二进制帧,但 JSON 帧已足够且更简单。
-
-### 1.4 Token 从哪来、如何安全存放
-
-- **来源(本机实测)**:`~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`(SQLite)
-  中键 `cursorAuth/accessToken`。它是 **JWT**(HS256,scope 含 `offline_access`),本机实测有效期约 2 个月;
-  同库还有 `cursorAuth/refreshToken`、`cursorAuth/stripeMembershipType` 等。也可在 Cursor → Settings → Accounts 复制。
-- **刷新机制(调研到,但故意不做)**:`POST https://api2.cursor.sh/oauth/token`
-  `{"grant_type":"refresh_token","client_id":"KbZUR41cY7W6zRSdpSUJ7I7mLYBKOCmB","refresh_token":"..."}`
-  → `{"access_token","id_token","shouldLogout"}`。⚠️ Auth0 刷新会**轮换**旧 refresh token:插件若自动刷新
-  且不写回 vscdb,会让 Cursor 本体掉登录。因此本插件**只读** Cursor 的 token,不触发刷新;
-  token 过期时在 Cursor 里重新登录即可,再点「从 Cursor 自动读取」。
-- **存放(安全)**:macOS **Keychain**(generic password,service `ai-goods.cursor-usage`)优先;
-  兜底文件 `~/Library/Application Support/CursorUsage/token.txt`(0600 权限,仅 Keychain 不可用时)。
-  **accessToken 绝不写入项目仓库**(仓库无任何 token 存储逻辑,`.gitignore` 已排除)。
-
----
-
-## 二、实现方案
-
-- **技术栈**:原生 Swift + AppKit/SwiftUI,**零第三方依赖**,仅系统框架(Xcode 工具链)。
-  菜单栏用 `NSStatusItem`,用量面板用无边框 `NSPanel`(SwiftUI 内容),设置用独立窗口。
-  编译产物做 **ad-hoc codesign**(否则较新 macOS 上 Keychain 返回 errSecMissingEntitlement)。
-- **交互**:状态栏图标(含综合用量百分比标题)左键 → 弹出用量面板;右键 → 菜单
-  (刷新用量 / 设置 Token… / 退出);面板含「刷新」「设置 Token…」按钮;面板打开时数据超 60 秒自动刷新;
-  后台每 5 分钟自动刷新;`LSUIElement=true` 不占 Dock。
-- **文件结构**:
-
-```
-cusor-usage/
-├── Makefile                 # build / bundle / run / test-dump / dump-json / smoke-test / test-keychain / install / clean
-├── Info.plist               # LSUIElement=true(菜单栏常驻,不占 Dock)
-├── .gitignore               # 排除 build/ 与 token 文件
-├── README.md                # 本文档
-└── Sources/
-    ├── main.swift           # AppDelegate、状态栏图标+百分比标题、面板/设置窗口、--dump/--dump-json/--keychain-test/--smoke-test
-    ├── UsageModels.swift    # GetCurrentPeriodUsage / GetPlanInfo / GetAggregatedUsageEvents 响应模型(注释含字段来源)
-    ├── UsageClient.swift    # Connect RPC v1 客户端(POST + 三个必需请求头 + 错误解析)
-    ├── TokenStore.swift     # Keychain + 兜底 0600 文件 + 从 Cursor vscdb 只读 + JWT 有效期解析
-    ├── UsageStore.swift     # 全局状态:拉取/缓存/定时刷新 + 两个池的美元拆分(aggregations × autoBucketModels)
-    ├── UsagePanelView.swift # 面板 UI:两个池用量/金额/进度条、Top 模型花费、按需额度、服务端消息
-    └── SettingsView.swift   # 设置窗口:粘贴/保存 token、从 Cursor 一键读取、token 有效期展示
-```
-
----
-
-## 三、可运行实现(交付内容)
-
-- 菜单栏常驻程序 `build/CursorUsage`(或打包 `build/CursorUsage.app`);
-- 面板同时展示 **Cursor models(Auto)** 与 **Other models(API)** 的百分比 + 美元花费,
-  以及 Other 池金额(已用/额度/剩余)、综合用量、Top 5 模型花费、按需额度、服务端消息、计费周期;
-- 设置入口:右键菜单 / 面板按钮「设置 Token…」,支持粘贴保存到钥匙串、从 Cursor 本地自动读取、显示 token 有效期;
-- 无 GUI 验证模式:`--dump`、`--dump-json`、`--keychain-test`、`--smoke-test`。
-
----
-
-## 四、本地启动与验证
-
-前置:macOS 13+,已装 Xcode 命令行工具;本机已登录 Cursor(用于自动读取 token)。
+## 构建 / 启动
 
 ```bash
 cd /Users/litianyi/Documents/Code/_ai-goods/cusor-usage
 
-# 1) 编译(自动 ad-hoc 签名)
-make build            # → build/CursorUsage
-
-# 2) 无 GUI 验证:真实拉取当前周期用量并打印解析结果(token 从 Cursor 本地只读)
-make test-dump
-# 或原始 JSON + 池拆分:
-make dump-json
-
-# 3) 打包 .app 并启动菜单栏常驻
-make run              # open build/CursorUsage.app
-
-# 4) 可选:安装到 /Applications
-make install
+make build     # 仅编译二进制 build/CursorUsage
+make selfcheck # 无头自测：真实 token 解析 + 真实 API + 钥匙串/文件存取
+./run.sh       # 构建 + 打包 .app + 启动（菜单栏出现图标）
 ```
 
-验证要点:
+退出：点面板底部电源键，或 `pkill CursorUsage`。
 
-1. `make test-dump` 应打印计费周期、套餐、Other 池金额、Cursor models / Other models 百分比、
-   美元拆分(合计应等于 totalSpend)与 Top 模型花费;
-2. 状态栏出现柱状图图标(右侧带综合用量百分比);左键弹出面板,可见两个池的用量与进度条;
-3. 右键 → 设置 Token…:粘贴 token 保存到钥匙串,或点「从 Cursor 自动读取」;保存后面板自动刷新;
-4. 断网 / token 失效时面板显示明确错误(HTTP 401 → 提示更新 token);
-5. `make smoke-test` / `make test-keychain` 可分别自检 GUI 启动与钥匙串存取。
+## token 从哪来、存哪里
 
----
+| 来源 | 说明 |
+|---|---|
+| 自动读取（默认） | `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` 的 `cursorAuth/accessToken`（JWT，约 2 个月有效），**只读打开，不回写** |
+| 手动粘贴 | 设置里粘贴 → **macOS 钥匙串**（`com.cursorusage.menubar`，`kSecAttrAccessibleAfterFirstUnlock`）；钥匙串不可用时兜底写入 `~/Library/Application Support/CursorUsage/config.json`（chmod 600，仓库外） |
 
-## 五、已知限制
+- token **绝不写入仓库**（`.gitignore` 已排除 `build/`、`token.txt`、`*.token`；配置在仓库外路径）
+- 代码不打印 token；请求仅走 HTTPS
 
-- `autoPercentUsed/apiPercentUsed` 的分母权重口径未公开(见 1.3),% 为服务端原值透传;
-- `autoSpend/apiSpend` 可选字段当前账户未返回,池金额为聚合拆分(误差与 totalSpend < 0.01 分,已实测);
-- 不做 token 自动刷新(原因见 1.4,避免轮换 Cursor 本体的 refresh token);
-- 接口为未公开协议,字段/端点可能随 Cursor 版本变化;以实机响应为准,应用升级后需回归验证。
+## 验证步骤
+
+1. **无头自测**（推荐先跑）：
+
+   ```bash
+   make selfcheck
+   ```
+
+   期望输出（本机实测结果）：`token 来源：Cursor 本地自动读取`、`GetCurrentPeriodUsage HTTP 200`、
+   `Cursor Models (autoPercentUsed): …%`、`Other Models (apiPercentUsed): …%`、
+   `GetAggregatedUsageEvents: … totalCents 合计 $… (planUsage.totalSpend $…, 误差 $…)`、
+   `池拆分: Cursor Models $… / Other Models $…`、`钥匙串 写入/读取/清除 正常`、`exit=0`。
+   任何 `[FAIL]` 即有问题。
+
+2. **界面验证**：`./run.sh` → 菜单栏出现图标（含百分比）→ 点击弹出面板：
+   - 能看到两条用量条（Cursor Models / Other Models）+ 合计与金额、周期
+   - ⚙️ 设置：粘贴 token → 保存 → 面板立即刷新；或直接点“自动读取 Cursor 本地”
+   - 点其他位置面板收起；再点图标重新弹出并拉取最新
+
+## 常见问题
+
+- **提示“未找到 accessToken”**：本机没登录 Cursor，或 state.vscdb 路径不同；去 ⚙️ 手动粘贴 token。
+- **HTTP 401**：token 过期/失效；重新“自动读取”或粘贴新 token。
+- **面板显示“响应中没有 planUsage”**：账户形态与 Ultra 不同（如旧版 request-based 账户），按缺失字段降级展示。
+- **钥匙串保存失败**：极少数受限环境；会自动回退到 600 权限本地文件。
+
+## 目录结构
+
+```
+Sources/main.swift       入口（--selfcheck / GUI）
+Sources/AppDelegate.swift 状态栏图标 + popover + 定时刷新
+Sources/CursorAPI.swift  Connect JSON 客户端 + Codable 模型
+Sources/TokenStore.swift 钥匙串 / 600 文件 / Cursor 本地只读
+Sources/PanelModel.swift 面板状态机（@MainActor）
+Sources/UsagePanel.swift SwiftUI 面板（双池用量条 + 设置区）
+Sources/Info.plist        .app 打包配置（LSUIElement）
+Makefile / run.sh         构建、自测、启动
+```

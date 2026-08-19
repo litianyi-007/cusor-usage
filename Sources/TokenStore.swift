@@ -1,162 +1,175 @@
 import Foundation
 import Security
+import SQLite3
 
-/// Token 存取设计:
-/// 1. macOS Keychain(generic password;service = ai-goods.cursor-usage)—— 首选,系统级加密保管
-/// 2. 兜底文件 ~/Library/Application Support/CursorUsage/token.txt(权限 0600)—— Keychain 不可用时
-/// 3. 一键从 Cursor 本地状态库读取 —— 只读,绝不改写 Cursor 任何状态
-///
-/// Token 绝不写入项目仓库:仓库内没有任何 token 存储逻辑或文件。
-enum TokenStore {
+// MARK: - 本地 Cursor 登录态（只读）
 
-    static let service = "ai-goods.cursor-usage"
-    static let account = "accessToken"
+struct LocalCursorAuth {
+    var accessToken: String?
+    var refreshToken: String?
+    var email: String?
+    var membershipType: String?
+}
 
-    // MARK: - Keychain
+/// token 存取：
+/// 1) macOS 钥匙串（首选，手动保存）
+/// 2) ~/Library/Application Support/CursorUsage/config.json（兜底，chmod 600，仓库外）
+/// 3) Cursor 桌面端本地状态库只读自动读取（默认模式）
+final class TokenStore {
 
-    @discardableResult
-    static func saveToKeychain(_ token: String) -> Bool {
-        guard let data = token.data(using: .utf8) else { return false }
-        if readFromKeychain() != nil {
-            let query: [String: Any] = [
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: service,
-                kSecAttrAccount as String: account,
-            ]
-            let attrs: [String: Any] = [kSecValueData as String: data]
-            return SecItemUpdate(query as CFDictionary, attrs as CFDictionary) == errSecSuccess
+    private let service = "com.cursorusage.menubar"
+    private let keychainAccount = "accessToken"
+    private let fileManager = FileManager.default
+
+    /// 兜底文件目录；可用环境变量 CURSORUSAGE_HOME 覆盖（自测用，避免写入真实用户目录）
+    private var appSupportDir: URL {
+        if let override = ProcessInfo.processInfo.environment["CURSORUSAGE_HOME"], !override.isEmpty {
+            return URL(fileURLWithPath: override)
         }
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecValueData as String: data,
-        ]
-        return SecItemAdd(query as CFDictionary, nil) == errSecSuccess
+        let base = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
+        return base.appendingPathComponent("CursorUsage", isDirectory: true)
     }
 
-    static func readFromKeychain() -> String? {
+    private var configFile: URL { appSupportDir.appendingPathComponent("config.json") }
+
+    enum Source: String { case manual = "manual", auto = "auto", none = "none" }
+
+    // MARK: - 钥匙串
+
+    func saveTokenToKeychain(_ token: String) -> Bool {
+        let baseQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: keychainAccount,
+        ]
+        SecItemDelete(baseQuery as CFDictionary)
+        let attrs: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: keychainAccount,
+            kSecValueData as String: Data(token.utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
+        ]
+        return SecItemAdd(attrs as CFDictionary, nil) == errSecSuccess
+    }
+
+    func loadTokenFromKeychain() -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrAccount as String: keychainAccount,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
-        var result: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        guard status == errSecSuccess, let data = result as? Data else { return nil }
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+              let data = item as? Data else { return nil }
         return String(data: data, encoding: .utf8)
     }
 
-    static func deleteFromKeychain() {
+    func clearTokenFromKeychain() -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrAccount as String: keychainAccount,
         ]
-        SecItemDelete(query as CFDictionary)
+        return SecItemDelete(query as CFDictionary) == errSecSuccess
     }
 
-    // MARK: - 兜底文件(Keychain 不可用时)
+    // MARK: - 兜底文件（600）
 
-    static var fallbackFileURL: URL? {
-        guard let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return nil }
-        return dir.appendingPathComponent("CursorUsage", isDirectory: true)
-            .appendingPathComponent("token.txt")
+    private func loadConfig() -> [String: String]? {
+        guard let data = try? Data(contentsOf: configFile),
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: String] else {
+            return nil
+        }
+        return dict
     }
 
-    @discardableResult
-    static func saveToFallbackFile(_ token: String) -> Bool {
-        guard let url = fallbackFileURL else { return false }
+    func saveTokenToFile(_ token: String) -> Bool {
         do {
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
-                                                    withIntermediateDirectories: true)
-            try token.write(to: url, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes([.posixPermissions: 0o600],
-                                                  ofItemAtPath: url.path)
+            try fileManager.createDirectory(at: appSupportDir, withIntermediateDirectories: true)
+            var dict = loadConfig() ?? [:]
+            dict["accessToken"] = token
+            let data = try JSONSerialization.data(withJSONObject: dict, options: [.prettyPrinted])
+            try data.write(to: configFile, options: .atomic)
+            try? fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: configFile.path)
             return true
         } catch {
             return false
         }
     }
 
-    static func readFromFallbackFile() -> String? {
-        guard let url = fallbackFileURL,
-              let data = try? Data(contentsOf: url) else { return nil }
-        let s = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return (s?.isEmpty ?? true) ? nil : s
-    }
+    func loadTokenFromFile() -> String? { loadConfig()?["accessToken"] }
 
-    // MARK: - 保存 / 读取总入口
-
-    @discardableResult
-    static func save(_ token: String) -> Bool {
-        let t = token.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty else { return false }
-        if saveToKeychain(t) { return true }
-        return saveToFallbackFile(t)
-    }
-
-    /// 读取顺序:Keychain → 兜底文件 → Cursor 本地状态库(allowCursor 为 true 时)
-    static func load(allowCursor: Bool) -> String? {
-        if let t = readFromKeychain() { return t }
-        if let t = readFromFallbackFile() { return t }
-        if allowCursor { return readFromCursorVscdb() }
-        return nil
-    }
-
-    // MARK: - 从 Cursor 本地状态库读取(只读)
-
-    static var cursorVscdbPath: String {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Cursor/User/globalStorage/state.vscdb")
-            .path
-    }
-
-    /// 通过 /usr/bin/sqlite3 只读查询 cursorAuth/accessToken。
-    /// 只读当前有效的 token,不修改 Cursor 的 token、不触发刷新。
-    static func readFromCursorVscdb() -> String? {
-        let path = cursorVscdbPath
-        guard FileManager.default.fileExists(atPath: path) else { return nil }
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
-        process.arguments = [
-            "-readonly",
-            path,
-            "SELECT value FROM ItemTable WHERE key='cursorAuth/accessToken';",
-        ]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
+    func clearTokenFromFile() -> Bool {
+        guard var dict = loadConfig() else { return false }
+        dict.removeValue(forKey: "accessToken")
         do {
-            try process.run()
+            let data = try JSONSerialization.data(withJSONObject: dict, options: [.prettyPrinted])
+            try data.write(to: configFile, options: .atomic)
+            try? fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: configFile.path)
+            return true
         } catch {
+            return false
+        }
+    }
+
+    // MARK: - Cursor 本地状态库（只读 SQLite）
+
+    private var cursorStateDBPaths: [String] {
+        [
+            NSHomeDirectory() + "/Library/Application Support/Cursor/User/globalStorage/state.vscdb",
+            NSHomeDirectory() + "/.config/Cursor/User/globalStorage/state.vscdb",
+        ]
+    }
+
+    func readCursorLocalAuth() -> LocalCursorAuth? {
+        guard let path = cursorStateDBPaths.first(where: { fileManager.fileExists(atPath: $0) }) else {
             return nil
         }
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let s = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return (s?.isEmpty ?? true) ? nil : s
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK, let db else {
+            return nil
+        }
+        defer { sqlite3_close(db) }
+        sqlite3_busy_timeout(db, 2000)
+
+        func get(_ key: String) -> String? {
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+            guard sqlite3_prepare_v2(db, "SELECT value FROM ItemTable WHERE key = ? LIMIT 1", -1, &stmt, nil) == SQLITE_OK else {
+                return nil
+            }
+            // SQLITE_TRANSIENT 是 C 宏，Swift 中需手动构造
+            sqlite3_bind_text(stmt, 1, key, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+            guard sqlite3_step(stmt) == SQLITE_ROW, let col = sqlite3_column_text(stmt, 0) else {
+                return nil
+            }
+            return String(cString: UnsafeRawPointer(col).assumingMemoryBound(to: CChar.self))
+        }
+
+        return LocalCursorAuth(
+            accessToken: get("cursorAuth/accessToken"),
+            refreshToken: get("cursorAuth/refreshToken"),
+            email: get("cursorAuth/cachedEmail"),
+            membershipType: get("cursorAuth/stripeMembershipType")
+        )
     }
 
-    // MARK: - JWT 辅助(仅用于展示 token 有效期,不解密、不上传)
+    // MARK: - 解析（优先级：手动钥匙串 → 兜底文件 → Cursor 本地自动）
 
-    /// 解析 JWT 的 payload 中 exp 字段(秒),返回过期时间。
-    static func tokenExpiry(_ token: String) -> Date? {
-        let parts = token.split(separator: ".")
-        guard parts.count >= 2 else { return nil }
-        var b64 = String(parts[1])
-            .replacingOccurrences(of: "-", with: "+")
-            .replacingOccurrences(of: "_", with: "/")
-        let rem = b64.count % 4
-        if rem == 2 { b64 += "==" } else if rem == 3 { b64 += "=" }
-        guard let data = Data(base64Encoded: b64),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let exp = obj["exp"] as? Double else { return nil }
-        return Date(timeIntervalSince1970: exp)
+    func resolveToken() -> (token: String?, source: Source, email: String?, plan: String?) {
+        if let kc = loadTokenFromKeychain(), !kc.isEmpty {
+            return (kc, .manual, nil, nil)
+        }
+        if let fileToken = loadTokenFromFile(), !fileToken.isEmpty {
+            return (fileToken, .manual, nil, nil)
+        }
+        if let local = readCursorLocalAuth(), let t = local.accessToken, !t.isEmpty {
+            return (t, .auto, local.email, local.membershipType)
+        }
+        return (nil, .none, nil, nil)
     }
 }
