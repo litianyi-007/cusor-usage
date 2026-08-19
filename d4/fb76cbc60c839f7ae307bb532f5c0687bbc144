@@ -1,0 +1,28 @@
+README.md
+  h_f7edc9edffde80 107
+Sources/AppDelegate.swift
+  h_f7edc9edffde80 5-10,12,15,19-22,26-30,42-50,52,60-69,72-73,85,91-108,111-114,116,120-203
+Sources/CursorAPI.swift
+  h_f7edc9edffde80 90,102-103,113-121
+Sources/PanelModel.swift
+  h_f7edc9edffde80 36-68,86-94,96,98,110,112-113,115-123,126,129-153,195,202,208,213,217,225
+Sources/Screenshot.swift
+  h_f7edc9edffde80 8-48,86
+Sources/TokenStore.swift
+  h_f7edc9edffde80 164,166,169,171,174,176,179,183-191
+Sources/UsagePanel.swift
+  h_f7edc9edffde80 13-15,21-24
+Sources/main.swift
+  h_f7edc9edffde80 4-7,16,19-21,23-24,27-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "d4fb76cbc60c839f7ae307bb532f5c0687bbc144",
+  "prompts": {},
+  "humans": {
+    "h_f7edc9edffde80": {
+      "author": "litianyi <litianyi@corp.netease.com>"
+    }
+  }
+}
