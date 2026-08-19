@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    name: Build (macOS)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show toolchain
+        run: swiftc --version && xcodebuild -version
+      - name: Build binary + generate Info.plist
+        run: make build
+      - name: Lint generated Info.plist
+        run: plutil -lint build/Info.plist
+      - name: Generate app icon (.icns)
+        run: make icns
+      - name: Version
+        run: make version

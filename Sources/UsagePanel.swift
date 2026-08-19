@@ -281,11 +281,12 @@ struct UsagePanelView: View {
             Text(model.lastUpdated.map { "更新于 " + Self.timeText($0) } ?? "未更新")
                 .font(.caption2)
                 .foregroundColor(.secondary)
-            Button(action: { model.openSettings() }) {
-                Image(systemName: "gearshape")
+            Button(action: { model.toggleSettings() }) {
+                Image(systemName: model.showSettings ? "gearshape.fill" : "gearshape")
+                    .foregroundColor(model.showSettings ? .accentColor : .primary)
             }
             .controlSize(.small)
-            .help("Token 设置")
+            .help(model.showSettings ? "收起设置" : "Token 设置")
             Button(action: { NSApplication.shared.terminate(nil) }) {
                 Image(systemName: "power")
             }

@@ -1,0 +1,29 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Release
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build app bundle
+        run: make app
+      - name: Package zip + dmg
+        run: make package
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(cat VERSION)
+          gh release create "v${VERSION}" \
+            build/CursorUsage-${VERSION}-macOS.zip \
+            build/CursorUsage-${VERSION}-macOS.dmg \
+            --title "CursorUsage v${VERSION}" \
+            --notes "$(cat .github/RELEASE_NOTES.md)"

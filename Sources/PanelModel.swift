@@ -195,6 +195,16 @@ final class PanelModel: ObservableObject {
         log("设置: 展开设置区")
     }
 
+    /// 设置按钮 toggle：展开/收起（与设置区内的收起按钮构成两处收起入口）
+    func toggleSettings() {
+        if showSettings {
+            showSettings = false
+            log("设置: 收起设置区（gear 按钮）")
+        } else {
+            openSettings()
+        }
+    }
+
     func saveManualToken() {
         let t = settingsToken.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else {

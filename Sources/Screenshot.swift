@@ -115,20 +115,14 @@ enum Screenshot {
         }
     }
 
-    /// 模拟菜单栏条：图标 + 合计百分比
+    /// 模拟菜单栏条：抽象派 C 图标 + 合计百分比
     @MainActor
     private static func renderMenubar(to url: URL, percent: String) -> Bool {
-        var icon = NSImage(systemSymbolName: "cursorarrow.rays", accessibilityDescription: nil)
-        if icon == nil { icon = NSImage(systemSymbolName: "chart.bar.fill", accessibilityDescription: nil) }
-        guard let baseIcon = icon else { return false }
-        let sized = baseIcon.withSymbolConfiguration(
-            NSImage.SymbolConfiguration(pointSize: 30, weight: .medium))!
-
         let img = NSImage(size: NSSize(width: 220, height: 88))
         img.lockFocus()
         NSColor(white: 0.09, alpha: 1).setFill()
         NSRect(x: 0, y: 0, width: 220, height: 88).fill()
-        sized.draw(in: NSRect(x: 22, y: 20, width: 48, height: 48))
+        CursorIcon.make(size: 52).draw(in: NSRect(x: 20, y: 18, width: 52, height: 52))
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 34, weight: .semibold),
             .foregroundColor: NSColor.white,

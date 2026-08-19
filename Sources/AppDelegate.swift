@@ -74,14 +74,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = item.button {
-            var image = NSImage(systemSymbolName: "cursorarrow.rays", accessibilityDescription: "Cursor 用量")
-            if image == nil {
-                image = NSImage(systemSymbolName: "chart.bar.fill", accessibilityDescription: "Cursor 用量")
-            }
-            image?.isTemplate = true
-            let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-            image = image?.withSymbolConfiguration(config)
-            button.image = image
+            // 抽象派字母 C + 用量百分比（彩色图标，不设 template 以保留渐变）
+            button.image = CursorIcon.make(size: 17)
+            button.image?.isTemplate = false
+            button.title = ""
             button.action = #selector(togglePanel(_:))
             button.target = self
         }
