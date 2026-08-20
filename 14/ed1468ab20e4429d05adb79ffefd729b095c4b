@@ -1,0 +1,26 @@
+DESIGN.md
+  h_f7edc9edffde80 55-58,73-75
+README.md
+  h_f7edc9edffde80 38-40,101-105
+RESEARCH.md
+  h_f7edc9edffde80 44-46,71-74,76-77,104,106,109,115,117-119,191-192
+Sources/CursorAPI.swift
+  h_f7edc9edffde80 7,14,16,18-19,59-60,75
+Sources/PanelModel.swift
+  h_f7edc9edffde80 73-81,146-148,169-177,197
+Sources/SelfCheck.swift
+  h_f7edc9edffde80 33-36,38-39
+Sources/UsagePanel.swift
+  h_f7edc9edffde80 125-127,171-172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "14ed1468ab20e4429d05adb79ffefd729b095c4b",
+  "prompts": {},
+  "humans": {
+    "h_f7edc9edffde80": {
+      "author": "litianyi <litianyi@corp.netease.com>"
+    }
+  }
+}
