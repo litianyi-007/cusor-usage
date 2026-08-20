@@ -1,0 +1,24 @@
+DESIGN.md
+  h_f7edc9edffde80 55-57,59,73
+README.md
+  h_f7edc9edffde80 38-39,100-101,103
+RESEARCH.md
+  h_f7edc9edffde80 67-73,77-79,82-83,114,122-123
+Sources/PanelModel.swift
+  h_f7edc9edffde80 73-76,143-144,165-171
+Sources/SelfCheck.swift
+  h_f7edc9edffde80 35,42
+Sources/UsagePanel.swift
+  h_f7edc9edffde80 110-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "8151229eb99a46bada0bb4f9dd1e955618a7e3fb",
+  "prompts": {},
+  "humans": {
+    "h_f7edc9edffde80": {
+      "author": "litianyi <litianyi@corp.netease.com>"
+    }
+  }
+}
