@@ -1,11 +1,10 @@
-# CursorUsage v0.4.1
+# CursorUsage v0.5.0
 
 ## What's new · 更新内容
 
-- 🔧 **修正用量数据展示（字段语义错误）**：依据 Cursor 官方文档核实，套餐只有**两个用量池**——Cursor Models（第一方 Grok/Composer）与 Other Models（第三方，Ultra 含 $400），没有独立的 included usage 逻辑
-- 📊 面板只展示两个池的用量（百分比 + 各池精确美元，按服务端 `tier` 归属求和）
-- 🟦 菜单栏标题改为两池百分比（如 `7%/45%` = Cursor Models / Other Models）
-- 🎨 黑鲸 / 帝王蟹标识资源更新为官方资源（DeepSeek Harness 官方仓库鲸鱼 favicon、ClawHive 官方应用 tray 图标）
+- ⚡ **打开面板先显示缓存数据，再静默请求更新**：再次打开不再闪 loading，秒开上次数据后后台刷新；首次打开（无缓存）才显示加载态；有缓存时请求失败也静默保留缓存
+- 🔄 后台定时刷新（每 5 min）同样改为静默更新，不打断状态栏/面板展示
+- 🔧 上一版已修正用量语义：官方只有两个用量池（Cursor Models / Other Models，Ultra 含 $400），面板只展示这两块，菜单栏显示两池百分比（如 `7%/45%`）
 
 ## Install · 安装
 
