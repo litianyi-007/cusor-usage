@@ -70,10 +70,10 @@ final class PanelModel: ObservableObject {
     var autoPercent: Double? { usage?.planUsage?.autoPercentUsed }
     var apiPercent: Double? { usage?.planUsage?.apiPercentUsed }
 
-    /// 状态栏标题：两池百分比（官方语义只有两个用量池），如 "C7%/45%"（Cursor Models / Other Models）
+    /// 状态栏标题：两池百分比（官方语义只有两个用量池），如 "7%/45%"（Cursor Models / Other Models）
     var poolTitle: String? {
         guard let auto = autoPercent, let api = apiPercent else { return nil }
-        return String(format: "C%.0f%%/%.0f%%", auto, api)
+        return String(format: "%.0f%%/%.0f%%", auto, api)
     }
 
     // MARK: - 拉取

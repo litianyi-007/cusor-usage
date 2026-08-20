@@ -32,7 +32,7 @@ enum SelfCheck {
                     if let pu = usage.planUsage {
                         out += String(format: "[ok] Cursor Models 池用量 (autoPercentUsed): %.2f%%\n", pu.autoPercentUsed ?? -1)
                         out += String(format: "[ok] Other Models 池用量 (apiPercentUsed): %.2f%%\n", pu.apiPercentUsed ?? -1)
-                        out += String(format: "[ok] 状态栏标题: C%.0f%%/%.0f%%\n", pu.autoPercentUsed ?? 0, pu.apiPercentUsed ?? 0)
+                        out += String(format: "[ok] 状态栏标题: %.0f%%/%.0f%%\n", pu.autoPercentUsed ?? 0, pu.apiPercentUsed ?? 0)
                     } else {
                         out += "[warn] 响应中没有 planUsage（账户形态可能与 Ultra 不同）\n"
                     }

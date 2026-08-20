@@ -56,7 +56,7 @@ cursor-usage/
     Cursor Models = autoPercentUsed（第一方 Grok/Composer 池），
     Other Models = apiPercentUsed（第三方池，Ultra 含 $400）；
     池美元拆分 = GetAggregatedUsageEvents 按服务端 tier 归属（tier=2 → Cursor，tier=1 → Other）
-  → 状态栏标题同步显示两池百分比（如 “C7%/45%”）
+  → 状态栏标题同步显示两池百分比（如 “7%/45%”）
 ```
 
 自动刷新：面板打开期间每 60s 刷新一次；后台每 5min 刷新一次（更新状态栏百分比）。错误时面板显示错误 + 引导去设置；状态栏回到纯图标。

@@ -76,7 +76,7 @@ User-Agent: cursorusage-menubar/0.1   (可选)
 |---|---|---|
 | **Cursor Models**（第一方：Grok 4.6/4.5、Composer） | `planUsage.autoPercentUsed` | 官方两池定义；实测池额度 ≈ **$2000**（tier2 花费 ÷ 百分比整除） |
 | **Other Models**（第三方，按厂商价格计费） | `planUsage.apiPercentUsed` | 官方两池定义；Ultra 含 **$400**（tier1 花费 ÷ 百分比 ≈ $500 = $400 官方额度 + 模型厂商赠送 bonus） |
-| 菜单栏标题 | `C{auto}%/{api}%`（如 `C7%/45%`） | 两池百分比即官方 Dashboard 的用量口径 |
+| 菜单栏标题 | `{auto}%/{api}%`（如 `7%/45%`） | 两池百分比即官方 Dashboard 的用量口径 |
 
 - 交叉验证 1（omarchy 生产 collector）：`autoPercentUsed → label "Cursor Models"`，`apiPercentUsed → label "Other Models"`。
 - 交叉验证 2（接口自述消息）：`namedModelSelectedDisplayMessage`（"…of your included API usage"，45%）对应 apiPercentUsed；`displayMessage`（"…of your included usage"，92%）是 in-app 提示的另一口径（includedSpend/limit），**不是独立用量池**，面板不展示。
@@ -119,7 +119,7 @@ POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetAggregatedUsageEvent
 |---|---|---|
 | 每池美元花费 | `GetAggregatedUsageEvents.aggregations[].totalCents` 按 `tier` 归属求和 | 分 |
 | 每池百分比 | `planUsage.autoPercentUsed` / `apiPercentUsed` | % |
-| 菜单栏标题 | `C{auto}%/{api}%` | — |
+| 菜单栏标题 | `{auto}%/{api}%` | — |
 | 参考（UI 不展示） | `planUsage.totalPercentUsed`（两池合计 ÷ 含 bonus 总池）、`includedSpend/limit`（官方 in-app 提示口径） | % |
 
 ### 其他探测过的端点（本机实测）

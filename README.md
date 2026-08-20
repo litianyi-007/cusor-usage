@@ -35,7 +35,7 @@ Click the menu bar icon to see your current billing-cycle usage at a glance — 
 
 | English | 中文 |
 |---|---|
-| 🟦 **Menu bar resident** — abstract-art letter **C** icon + live **two-pool %** (`C7%/45%` = Cursor Models / Other Models), no Dock icon (`LSUIElement`) | 🟦 **菜单栏常驻**——抽象派字母 **C** 图标 + 实时**双池百分比**（`C7%/45%` = Cursor Models / Other Models），无 Dock 图标 |
+| 🟦 **Menu bar resident** — abstract-art letter **C** icon + live **two-pool %** (`7%/45%` = Cursor Models / Other Models), no Dock icon (`LSUIElement`) | 🟦 **菜单栏常驻**——抽象派字母 **C** 图标 + 实时**双池百分比**（`7%/45%` = Cursor Models / Other Models），无 Dock 图标 |
 | ⚖️ **Two pools only** (official semantics: no separate "included" concept): Cursor Models (`autoPercentUsed`, first-party Grok/Composer pool) and Other Models (`apiPercentUsed`, third-party pool, Ultra incl. $400), each with **exact dollar spend** derived from `GetAggregatedUsageEvents` by server-side **`tier`** (verified: sum == `planUsage.totalSpend`) | ⚖️ **只展示两个用量池**（官方语义，无独立 included 概念）：Cursor Models（`autoPercentUsed`，第一方 Grok/Composer 池）与 Other Models（`apiPercentUsed`，第三方池，Ultra 含 $400），各池**精确美元花费**由 `GetAggregatedUsageEvents` 按服务端 `tier` 归属求和（实测合计 == `totalSpend`） |
 | 🏆 **Top models by spend** (top 3) | 🏆 **Top 模型**（按花费前 3） |
 | 📅 **Billing cycle** start → end, "resets in N days" | 📅 **计费周期**起止与“N 天后重置” |
@@ -100,7 +100,7 @@ Body: {}
 | **Cursor Models**（第一方：Grok 4.6/4.5、Composer，官方 "generous" 池） | `planUsage.autoPercentUsed` | `GetAggregatedUsageEvents` sum of `tier == 2` models |
 | **Other Models**（第三方，按厂商价格计费，Ultra 含 $400） | `planUsage.apiPercentUsed` | …`tier == 1` models (claude-*/gpt-*) |
 
-> 💡 依据官方文档 [usage-limits](https://cursor.com/help/models-and-usage/usage-limits.md)：套餐**只有这两个用量池**，没有独立的 "included usage" 逻辑；菜单栏标题 `C7%/45%` 即两池百分比。
+> 💡 依据官方文档 [usage-limits](https://cursor.com/help/models-and-usage/usage-limits.md)：套餐**只有这两个用量池**，没有独立的 "included usage" 逻辑；菜单栏标题 `7%/45%` 即两池百分比。
 
 Full research (protocol, fields, token sources, uncertainties) → [RESEARCH.md](RESEARCH.md) · 完整调研见 [RESEARCH.md](RESEARCH.md)
 Design & architecture → [DESIGN.md](DESIGN.md) · 实现方案见 [DESIGN.md](DESIGN.md)
