@@ -1,0 +1,22 @@
+DESIGN.md
+  h_f7edc9edffde80 59
+README.md
+  h_f7edc9edffde80 38,103
+RESEARCH.md
+  h_f7edc9edffde80 79,122
+Sources/PanelModel.swift
+  h_f7edc9edffde80 73,76
+Sources/SelfCheck.swift
+  h_f7edc9edffde80 35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "97ef169c1bd6d1b018b4c86c201f88ad32928fad",
+  "prompts": {},
+  "humans": {
+    "h_f7edc9edffde80": {
+      "author": "litianyi <litianyi@corp.netease.com>"
+    }
+  }
+}
