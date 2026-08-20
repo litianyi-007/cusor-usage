@@ -32,18 +32,14 @@ enum SelfCheck {
                     if let pu = usage.planUsage {
                         out += String(format: "[ok] Cursor Models 池用量 (autoPercentUsed): %.2f%%\n", pu.autoPercentUsed ?? -1)
                         out += String(format: "[ok] Other Models 池用量 (apiPercentUsed): %.2f%%\n", pu.apiPercentUsed ?? -1)
-                        let included = pu.limit.map { $0 > 0 ? (pu.includedSpend ?? pu.totalSpend ?? 0) / $0 * 100 : nil } ?? nil
-                        out += String(format: "[ok] Included usage 消耗 (includedSpend/limit): %.2f%%\n", included ?? -1)
-                        out += String(format: "[ok] 金额: 已用 $%.2f / 限额 $%.2f / 剩余 $%.2f\n",
-                                      (pu.includedSpend ?? pu.totalSpend ?? 0) / 100, (pu.limit ?? 0) / 100, (pu.remaining ?? 0) / 100)
-                        out += String(format: "[ok] 总池用量含 bonus (totalPercentUsed): %.2f%%\n", pu.totalPercentUsed ?? -1)
+                        out += String(format: "[ok] 状态栏标题: C%.0f%%/%.0f%%\n", pu.autoPercentUsed ?? 0, pu.apiPercentUsed ?? 0)
                     } else {
                         out += "[warn] 响应中没有 planUsage（账户形态可能与 Ultra 不同）\n"
                     }
                     if let s = usage.billingCycleStart, let e = usage.billingCycleEnd {
                         out += "[ok] 周期: \(msDate(s)) → \(msDate(e))\n"
                     }
-                    out += "[ok] displayMessage: \(usage.displayMessage ?? "(无)")"
+                    out += "[ok] 官方口径参考 displayMessage: \(usage.displayMessage ?? "(无)")"
                     return (out, false)
                 } catch {
                     return ("[FAIL] 请求失败: \(error.localizedDescription)", true)

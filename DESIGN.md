@@ -52,10 +52,11 @@ cursor-usage/
                / Connect-Protocol-Version: 1
       body: {}
   → 解析 PeriodUsage（Codable）
-  → 面板渲染：Cursor Models = autoPercentUsed（auto 池 ≈ $2000），Other Models = apiPercentUsed（API 池 ≈ $500），
-    Included usage = includedSpend / limit（买断额度口径，与官方 displayMessage 的 92% 一致）；
+  → 面板渲染（官方语义：只有两个用量池，见 cursor.com/help/models-and-usage/usage-limits）：
+    Cursor Models = autoPercentUsed（第一方 Grok/Composer 池），
+    Other Models = apiPercentUsed（第三方池，Ultra 含 $400）；
     池美元拆分 = GetAggregatedUsageEvents 按服务端 tier 归属（tier=2 → Cursor，tier=1 → Other）
-  → 状态栏标题同步显示买断额度消耗百分比（如 “92%”）
+  → 状态栏标题同步显示两池百分比（如 “C7%/45%”）
 ```
 
 自动刷新：面板打开期间每 60s 刷新一次；后台每 5min 刷新一次（更新状态栏百分比）。错误时面板显示错误 + 引导去设置；状态栏回到纯图标。
@@ -69,10 +70,9 @@ cursor-usage/
   - 定位上移 8pt（窗口顶与菜单栏底齐平，不压菜单栏，避免吞掉相邻状态栏项点击）：玻璃顶约 10pt 悬于菜单栏下方。
   - **回退**：macOS 12–25 保持传统实心圆角卡片（`windowBackgroundColor` + 12pt 圆角）；`--screenshot` 模式因 ImageRenderer 无法合成 `glassEffect` 的 Metal 图层，改用拟真玻璃底（`.ultraThinMaterial` + 顶部高光 + 双层描边）。
 - **头部**：图标 + “Cursor 用量” + 套餐/邮箱（GetPlanInfo + 本地 cachedEmail）
-- **用量条 ×3**：
+- **用量条 ×2（官方只有两个用量池，没有 included usage 逻辑）**：
   - `Cursor Models` — autoPercentUsed（绿色→橙→红按阈值变色）；美元 = 聚合端点 `tier == 2` 求和
   - `Other Models` — apiPercentUsed；美元 = `tier == 1` 求和
-  - `Included usage` — **includedSpend / limit 百分比（官方 displayMessage 口径）** + 金额 `已用 $X / 限额 $Y / 剩余 $Z`（美分 ÷ 100）；`totalPercentUsed`（含 bonus 总池口径）不并排展示，仅 SelfCheck 输出参考
   - 用量条为玻璃质感：半透明轨道（primary 0.10 + 细描边）+ 渐变填充 + 顶部高光 + 白色细描边
 - **周期**：`2026-08-16 → 2026-09-19 · 23 天后重置`
 - **按量付费**（有值时）：pooled / individual used·limit

@@ -64,18 +64,23 @@ User-Agent: cursorusage-menubar/0.1   (可选)
 
 ### Cursor models vs Other models 的字段拆分（核心结论）
 
-接口在 `GetCurrentPeriodUsage` 里给出的拆分是**隐式百分比**：
+**官方文档（2026-08 核实）** [usage-limits](https://cursor.com/help/models-and-usage/usage-limits.md) / [pricing](https://cursor.com/help/account-and-billing/pricing.md) / [models-and-pricing](https://cursor.com/docs/models-and-pricing.md)：
+
+> "Each Cursor plan includes **two** monthly usage pools"
+> - **Cursor Models**: Cursor Grok 4.6 / Grok 4.5 / Composer 2.5（第一方，"generous" included usage，实测池 ≈ **$2000**）
+> - **Other Models**: Third-party models, charged at model provider prices（Ultra = **$400** of API agent usage）
+
+**套餐只有这两个用量池，没有独立的 "included usage" 逻辑**。面板与菜单栏都只展现这两块：
 
 | 面板要展示的池 | 字段 | 语义依据 |
 |---|---|---|
-| **Cursor Models**（Cursor 自家模型：composer / vega / cursor-grok 等） | `planUsage.autoPercentUsed` | 自动模式（Auto）路由到 Cursor 自家模型池；官方文档确认 “Cursor Models: Cursor Grok 4.6/4.5、Composer 2.5”；实测池额度 ≈ **$2000**（花费 ÷ 百分比整除） |
-| **Other Models**（第三方模型，按模型厂商价格计费） | `planUsage.apiPercentUsed` | 命名模型/API 模式走第三方池；官方文档 “Other Models: Third-party models, charged at model provider prices”；实测池额度 ≈ **$500** |
-| **Included usage（买断额度消耗）** | `planUsage.includedSpend / planUsage.limit` | 官方 `displayMessage` 口径（“You've used 92% of your included usage”）；`limit` 即套餐买断额度（Ultra = $400） |
-| **总池用量（含 bonus，参考）** | `planUsage.totalPercentUsed` | 两池花费合计 ÷ 总池（auto 池 + API 池 ≈ **$2500**，超出买断额度的部分为模型厂商赠送的 bonus 免费额度）；**不是**「$400 买断额度」的口径，勿与金额并排展示 |
+| **Cursor Models**（第一方：Grok 4.6/4.5、Composer） | `planUsage.autoPercentUsed` | 官方两池定义；实测池额度 ≈ **$2000**（tier2 花费 ÷ 百分比整除） |
+| **Other Models**（第三方，按厂商价格计费） | `planUsage.apiPercentUsed` | 官方两池定义；Ultra 含 **$400**（tier1 花费 ÷ 百分比 ≈ $500 = $400 官方额度 + 模型厂商赠送 bonus） |
+| 菜单栏标题 | `C{auto}%/{api}%`（如 `C7%/45%`） | 两池百分比即官方 Dashboard 的用量口径 |
 
 - 交叉验证 1（omarchy 生产 collector）：`autoPercentUsed → label "Cursor Models"`，`apiPercentUsed → label "Other Models"`。
-- 交叉验证 2（接口自述消息）：`autoModelSelectedDisplayMessage` 对应总池用量（15%，即 totalPercentUsed 口径），`namedModelSelectedDisplayMessage` 对应 “included API usage”（45%，即 apiPercentUsed 口径），`displayMessage` 对应买断额度（92%，includedSpend/limit 口径）。
-- 官方文档口径：Pro/Pro Plus/Ultra 都是 “x 美元 API agent usage + 第一方模型池”，两池语义一致。
+- 交叉验证 2（接口自述消息）：`namedModelSelectedDisplayMessage`（"…of your included API usage"，45%）对应 apiPercentUsed；`displayMessage`（"…of your included usage"，92%）是 in-app 提示的另一口径（includedSpend/limit），**不是独立用量池**，面板不展示。
+- `totalPercentUsed` 是两池合计 ÷ 总池（≈ $2500，含 bonus）的参考值，UI 不展示。
 
 ### 两个池的美元拆分：来自 `GetAggregatedUsageEvents`（重要补充）
 
@@ -106,7 +111,7 @@ POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetAggregatedUsageEvent
 **一致性验证（本机实测）**：`aggregations[].totalCents` 之和 = $198.77 ≈ `planUsage.totalSpend` = $198.76（误差 $0.01，四舍五入）。池拆分结果：Cursor Models **$58.89** / Other Models **$139.87**（tier 分组结果一致）。
 
 **池额度反推（推断，非接口直给）**：`池花费 ÷ 池百分比` 得出
-`Cursor Models 池 ≈ $2000`（$58.89 ÷ 2.9445%）、`Other Models 池 ≈ $500`（$139.87 ÷ 27.974%），两个值都整除得很干净，且 `totalPercentUsed` 分母 = $2500 时三者一致（19876/250000 = 7.95%）。因此 `autoPercentUsed`/`apiPercentUsed` 的分母应是各自池额度而非 `planUsage.limit`（$400，那是 displayMessage “50%” 的口径）。
+`Cursor Models 池 ≈ $2000`（$58.89 ÷ 2.9445%）、`Other Models 池 ≈ $500`（$139.87 ÷ 27.974%），两个值都整除得很干净，且 `totalPercentUsed` 分母 = $2500 时三者一致（19876/250000 = 7.95%）。结合官方文档：**Other Models 官方额度 = $400**（Ultra pricing），实测分母 $500 = $400 + 模型厂商赠送的 bonus；Cursor Models 官方只写 "generous"，实测 ≈ $2000。这些池额度不用于 UI 展示。
 
 ### 金额口径小结
 
@@ -114,9 +119,8 @@ POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetAggregatedUsageEvent
 |---|---|---|
 | 每池美元花费 | `GetAggregatedUsageEvents.aggregations[].totalCents` 按 `tier` 归属求和 | 分 |
 | 每池百分比 | `planUsage.autoPercentUsed` / `apiPercentUsed` | % |
-| Included 美元（已用/限额/剩余） | `planUsage.includedSpend/limit/remaining` | 分 |
-| Included 百分比（面板主展示） | `includedSpend / limit × 100`（官方 displayMessage 口径，如 92%） | % |
-| 总池用量（含 bonus，仅参考） | `planUsage.totalPercentUsed`（分母 ≈ $2500） | % |
+| 菜单栏标题 | `C{auto}%/{api}%` | — |
+| 参考（UI 不展示） | `planUsage.totalPercentUsed`（两池合计 ÷ 含 bonus 总池）、`includedSpend/limit`（官方 in-app 提示口径） | % |
 
 ### 其他探测过的端点（本机实测）
 

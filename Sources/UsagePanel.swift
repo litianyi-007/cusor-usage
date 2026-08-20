@@ -96,12 +96,6 @@ struct UsagePanelView: View {
                 if let onDemand = usage.spendLimitUsage {
                     onDemandRow(onDemand)
                 }
-                if let msg = usage.displayMessage, !msg.isEmpty {
-                    Text(msg)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
             } else {
                 Text("暂无数据，点击刷新")
                     .font(.caption)
@@ -113,6 +107,9 @@ struct UsagePanelView: View {
 
     // MARK: 用量条
 
+    /// 官方语义（cursor.com/help/models-and-usage/usage-limits）：
+    /// 套餐只有两个用量池 —— Cursor Models（第一方：Grok 4.6/4.5、Composer）与
+    /// Other Models（第三方，Ultra 含 $400）；没有独立的 "included usage" 逻辑。
     private func meters(_ usage: PeriodUsage) -> some View {
         let pools = model.poolSpendCents
         return VStack(alignment: .leading, spacing: 10) {
@@ -122,10 +119,6 @@ struct UsagePanelView: View {
             MeterRow(title: "Other Models",
                      percent: usage.planUsage?.apiPercentUsed ?? 0,
                      detail: poolDetail(cents: pools?.other, percent: usage.planUsage?.apiPercentUsed))
-            // Included 行用「买断额度」口径（includedSpend/limit），与官方 displayMessage 一致（如 92%）
-            MeterRow(title: "Included usage",
-                     percent: model.includedPercent ?? 0,
-                     detail: totalDetail(usage.planUsage))
             if !model.topModels.isEmpty {
                 topModelsSection
             }
@@ -163,16 +156,6 @@ struct UsagePanelView: View {
             }
         }
         .padding(.top, 4)
-    }
-
-    private func totalDetail(_ pu: PlanUsage?) -> String {
-        guard let pu else { return "—" }
-        var parts: [String] = []
-        // 与 includedPercent 同口径：已用取 includedSpend（bonus 免费额度另计），与官方 displayMessage 一致
-        if let t = pu.includedSpend ?? pu.totalSpend { parts.append("已用 $\(Self.cents(t))") }
-        if let l = pu.limit { parts.append("限额 $\(Self.cents(l))") }
-        if let r = pu.remaining { parts.append("剩余 $\(Self.cents(r))") }
-        return parts.joined(separator: " · ")
     }
 
     static func cents(_ v: Double) -> String {
