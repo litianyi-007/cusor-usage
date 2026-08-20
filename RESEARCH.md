@@ -41,9 +41,9 @@ User-Agent: cursorusage-menubar/0.1   (可选)
     "limit": 40000,                            // 套餐包含额度（美分，Ultra = $400）
     "remainingBonus": false,
     "bonusTooltip": "We work with model providers ...",
-    "autoPercentUsed": 2.9444999999999997,     // ★ Cursor Models 池用量（%）
-    "apiPercentUsed": 27.974,                  // ★ Other Models 池用量（%）
-    "totalPercentUsed": 7.9504                 // ★ 合计用量（%）
+    "autoPercentUsed": 2.9444999999999997,     // ★ Cursor Models 池用量 %（池额度 ≈ $2000）
+    "apiPercentUsed": 27.974,                  // ★ Other Models 池用量 %（池额度 ≈ $500）
+    "totalPercentUsed": 7.9504                 // 总池用量 %（auto+API 池 ≈ $2500，含 bonus；非买断额度口径）
   },
   "spendLimitUsage": { "limitType": "user" },  // 按量付费预算（有值时才有 pooled/individual 字段）
   "displayThreshold": 200,                     // 阈值（万分之几，200 = 2%，推断用于告警）
@@ -68,12 +68,13 @@ User-Agent: cursorusage-menubar/0.1   (可选)
 
 | 面板要展示的池 | 字段 | 语义依据 |
 |---|---|---|
-| **Cursor Models**（Cursor 自家模型：composer / vega / cursor-grok 等） | `planUsage.autoPercentUsed` | 自动模式（Auto）路由到 Cursor 自家模型池；`autoBucketModels` 即该池模型清单；官方文档确认 “Cursor Models: Cursor Grok 4.6/4.5、Composer 2.5” |
-| **Other Models**（第三方模型，按模型厂商价格计费） | `planUsage.apiPercentUsed` | 命名模型/API 模式走第三方池；官方文档 “Other Models: Third-party models, charged at model provider prices” |
-| **合计** | `planUsage.totalPercentUsed` | 两池加权合计 |
+| **Cursor Models**（Cursor 自家模型：composer / vega / cursor-grok 等） | `planUsage.autoPercentUsed` | 自动模式（Auto）路由到 Cursor 自家模型池；官方文档确认 “Cursor Models: Cursor Grok 4.6/4.5、Composer 2.5”；实测池额度 ≈ **$2000**（花费 ÷ 百分比整除） |
+| **Other Models**（第三方模型，按模型厂商价格计费） | `planUsage.apiPercentUsed` | 命名模型/API 模式走第三方池；官方文档 “Other Models: Third-party models, charged at model provider prices”；实测池额度 ≈ **$500** |
+| **Included usage（买断额度消耗）** | `planUsage.includedSpend / planUsage.limit` | 官方 `displayMessage` 口径（“You've used 92% of your included usage”）；`limit` 即套餐买断额度（Ultra = $400） |
+| **总池用量（含 bonus，参考）** | `planUsage.totalPercentUsed` | 两池花费合计 ÷ 总池（auto 池 + API 池 ≈ **$2500**，超出买断额度的部分为模型厂商赠送的 bonus 免费额度）；**不是**「$400 买断额度」的口径，勿与金额并排展示 |
 
-- 交叉验证 1（omarchy 生产 collector）：`autoPercentUsed → label "Cursor Models"`，`apiPercentUsed → label "Other Models"`，`totalPercentUsed → "Included total"`。
-- 交叉验证 2（接口自述消息）：`autoModelSelectedDisplayMessage` 对应总用量（Auto 模式默认），`namedModelSelectedDisplayMessage` 对应 “API usage”（命名模式 = Other 池）。
+- 交叉验证 1（omarchy 生产 collector）：`autoPercentUsed → label "Cursor Models"`，`apiPercentUsed → label "Other Models"`。
+- 交叉验证 2（接口自述消息）：`autoModelSelectedDisplayMessage` 对应总池用量（15%，即 totalPercentUsed 口径），`namedModelSelectedDisplayMessage` 对应 “included API usage”（45%，即 apiPercentUsed 口径），`displayMessage` 对应买断额度（92%，includedSpend/limit 口径）。
 - 官方文档口径：Pro/Pro Plus/Ultra 都是 “x 美元 API agent usage + 第一方模型池”，两池语义一致。
 
 ### 两个池的美元拆分：来自 `GetAggregatedUsageEvents`（重要补充）
@@ -100,21 +101,22 @@ POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetAggregatedUsageEvent
 }
 ```
 
-**归属规则**：`modelIntent` 命中 `autoBucketModels`（或名称前缀 `cursor-`/`composer`/`vega`/`grok`）→ Cursor Models 池；其余（`claude-*`/`gpt-*` 等）→ Other Models 池。
+**归属规则（权威标准 = `tier` 字段，2026-08 实测升级）**：`tier == 2` → Cursor Models 池（auto 池），`tier == 1` → Other Models 池（API 池）。数学验证：tier2 花费和 ÷ `autoPercentUsed` = $2000 整除、tier1 花费和 ÷ `apiPercentUsed` = $500 整除，与两池额度反推完全吻合。**`autoBucketModels` 清单并不完整**（实测不含 cursor-grok-4.6 系列，但其 tier=2 属 auto 池），只作 tier 缺失时的兜底，名称前缀（`cursor-`/`composer`/`vega`/`grok`）作最后兜底。
 
-**一致性验证（本机实测）**：`aggregations[].totalCents` 之和 = $198.77 ≈ `planUsage.totalSpend` = $198.76（误差 $0.01，四舍五入）。池拆分结果：Cursor Models **$58.89** / Other Models **$139.87**。
+**一致性验证（本机实测）**：`aggregations[].totalCents` 之和 = $198.77 ≈ `planUsage.totalSpend` = $198.76（误差 $0.01，四舍五入）。池拆分结果：Cursor Models **$58.89** / Other Models **$139.87**（tier 分组结果一致）。
 
 **池额度反推（推断，非接口直给）**：`池花费 ÷ 池百分比` 得出
-`Cursor Models 池 ≈ $2000`（$58.89 ÷ 2.9445%）、`Other Models 池 ≈ $500`（$139.87 ÷ 27.974%），两个值都整除得很干净，且 `totalPercentUsed` 分母 = $2500 时三者一致（19876/250000 = 7.95%）。因此 `autoPercentUsed`/`apiPercentUsed` 的分母应是各自池额度而非 `planUsage.limit`（$400，那是 displayMessage “50%” 的口径）。这一推断未在 UI 中当作硬数据展示。
+`Cursor Models 池 ≈ $2000`（$58.89 ÷ 2.9445%）、`Other Models 池 ≈ $500`（$139.87 ÷ 27.974%），两个值都整除得很干净，且 `totalPercentUsed` 分母 = $2500 时三者一致（19876/250000 = 7.95%）。因此 `autoPercentUsed`/`apiPercentUsed` 的分母应是各自池额度而非 `planUsage.limit`（$400，那是 displayMessage “50%” 的口径）。
 
 ### 金额口径小结
 
 | 数据 | 来源 | 单位 |
 |---|---|---|
-| 每池美元花费 | `GetAggregatedUsageEvents.aggregations[].totalCents` 按池归属求和 | 分 |
+| 每池美元花费 | `GetAggregatedUsageEvents.aggregations[].totalCents` 按 `tier` 归属求和 | 分 |
 | 每池百分比 | `planUsage.autoPercentUsed` / `apiPercentUsed` | % |
-| 合计美元（已用/限额/剩余） | `planUsage.totalSpend/includedSpend/remaining/limit` | 分 |
-| 合计百分比 | `planUsage.totalPercentUsed` | % |
+| Included 美元（已用/限额/剩余） | `planUsage.includedSpend/limit/remaining` | 分 |
+| Included 百分比（面板主展示） | `includedSpend / limit × 100`（官方 displayMessage 口径，如 92%） | % |
+| 总池用量（含 bonus，仅参考） | `planUsage.totalPercentUsed`（分母 ≈ $2500） | % |
 
 ### 其他探测过的端点（本机实测）
 
@@ -186,8 +188,8 @@ token 有效期长（约 2 个月），**手动粘贴 accessToken 到设置里�
 ## 4. 不确定点（明确列出）
 
 1. **接口无官方公开文档**，字段可能随时变化（已做防御性解析：字段缺失/非数值时优雅降级）。
-2. **per-pool 美元拆分无直给字段**，由 `GetAggregatedUsageEvents` 按模型归属求和得到（本机已验证合计与 `totalSpend` 一致）；归属依赖 `autoBucketModels` 与名称前缀启发式，第三方模型命名变化可能影响归属。
-3. **池额度（$2000/$500）为反推推断**，非接口直给；UI 不将其当作硬数据展示。
+2. **per-pool 美元拆分无直给字段**，由 `GetAggregatedUsageEvents` 按模型归属求和得到（本机已验证合计与 `totalSpend` 一致）；归属以服务端 **`tier` 字段为准**（tier=2 auto 池 / tier=1 API 池），`autoBucketModels` 与名称前缀仅作兜底。
+3. **池额度（$2000/$500）为反推推断**，非接口直给；UI 不将其当作硬数据展示。**面板 Included 行改用 `includedSpend/limit` 口径**（与官方 displayMessage 一致），`totalPercentUsed`（含 bonus 总池口径）仅作参考、不与买断额度金额并排展示。
 4. **刷新端点未 live 验证**（怕轮换 token 影响用户 Cursor 会话）；实现中作为 401 时的可选兜底，默认不启用。
 5. `displayThreshold`/`enabled` 的确切语义是推断（阈值告警），未影响主功能。
 6. Pro 旧版 request-based 账户的响应可能不带 `planUsage` 金额字段（本实现按百分比 + 缺失降级处理）。

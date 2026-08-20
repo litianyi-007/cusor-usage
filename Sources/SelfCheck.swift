@@ -30,11 +30,13 @@ enum SelfCheck {
                     let usage = try await CursorAPI().fetchPeriodUsage(token: token)
                     var out = "[ok] GetCurrentPeriodUsage HTTP 200\n"
                     if let pu = usage.planUsage {
-                        out += String(format: "[ok] Cursor Models (autoPercentUsed): %.2f%%\n", pu.autoPercentUsed ?? -1)
-                        out += String(format: "[ok] Other Models (apiPercentUsed): %.2f%%\n", pu.apiPercentUsed ?? -1)
-                        out += String(format: "[ok] Included total (totalPercentUsed): %.2f%%\n", pu.totalPercentUsed ?? -1)
+                        out += String(format: "[ok] Cursor Models 池用量 (autoPercentUsed): %.2f%%\n", pu.autoPercentUsed ?? -1)
+                        out += String(format: "[ok] Other Models 池用量 (apiPercentUsed): %.2f%%\n", pu.apiPercentUsed ?? -1)
+                        let included = pu.limit.map { $0 > 0 ? (pu.includedSpend ?? pu.totalSpend ?? 0) / $0 * 100 : nil } ?? nil
+                        out += String(format: "[ok] Included usage 消耗 (includedSpend/limit): %.2f%%\n", included ?? -1)
                         out += String(format: "[ok] 金额: 已用 $%.2f / 限额 $%.2f / 剩余 $%.2f\n",
-                                      (pu.totalSpend ?? 0) / 100, (pu.limit ?? 0) / 100, (pu.remaining ?? 0) / 100)
+                                      (pu.includedSpend ?? pu.totalSpend ?? 0) / 100, (pu.limit ?? 0) / 100, (pu.remaining ?? 0) / 100)
+                        out += String(format: "[ok] 总池用量含 bonus (totalPercentUsed): %.2f%%\n", pu.totalPercentUsed ?? -1)
                     } else {
                         out += "[warn] 响应中没有 planUsage（账户形态可能与 Ultra 不同）\n"
                     }

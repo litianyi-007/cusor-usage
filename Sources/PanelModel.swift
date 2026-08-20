@@ -70,6 +70,15 @@ final class PanelModel: ObservableObject {
     var autoPercent: Double? { usage?.planUsage?.autoPercentUsed }
     var apiPercent: Double? { usage?.planUsage?.apiPercentUsed }
 
+    /// purchased included 额度消耗百分比（= includedSpend / limit，与官方 displayMessage 同口径，
+    /// 例："You've used 92% of your included usage"）。这是「套餐买断额度」的消耗，最贴近用户直觉。
+    var includedPercent: Double? {
+        guard let pu = usage?.planUsage,
+              let spent = pu.includedSpend ?? pu.totalSpend,
+              let limit = pu.limit, limit > 0 else { return nil }
+        return spent / limit * 100
+    }
+
     // MARK: - 拉取
 
     func refresh() {
@@ -134,8 +143,9 @@ final class PanelModel: ObservableObject {
         usage = u
         lastUpdated = Date()
         phase = .loaded
-        if let total = u.planUsage?.totalPercentUsed {
-            statusTitle = String(format: "%.0f%%", total)
+        // 状态栏百分比：purchased included 消耗（与官方 displayMessage 同口径，如 92%）
+        if let included = includedPercent {
+            statusTitle = String(format: "%.0f%%", included)
         }
 
         // 次要数据（planName / 聚合拆分）fire-and-forget：失败或超时绝不影响主流程
@@ -156,9 +166,15 @@ final class PanelModel: ObservableObject {
 
     // MARK: - 两个池的美元拆分
 
-    /// 模型归属：Cursor models 池 = 服务端 autoBucketModels 精确命中；
-    /// 未命中时按名称前缀启发式归属（cursor- / composer / vega / grok），与实测数据一致。
-    private func isCursorPoolModel(_ name: String, auto: Set<String>) -> Bool {
+    /// 模型归属（权威标准 = 服务端 `tier` 字段）：
+    /// - `tier == 2` → **Cursor Models 池**（auto 池：composer / vega / cursor-grok 等 Cursor 自家模型）
+    /// - `tier == 1` → **Other Models 池**（API 池：claude / gpt 等第三方模型）
+    /// 实测验证：tier2 花费和 ÷ autoPercentUsed ≈ 200000 分（$2000 池）、
+    /// tier1 花费和 ÷ apiPercentUsed ≈ 50000 分（$500 池），两池相加 == totalPercentUsed 分母 $2500，完全自洽。
+    /// 注：`autoBucketModels` 列表并不完整（实测不含 cursor-grok-4.6 系列，但其 tier=2），
+    /// 因此仅作为 tier 缺失时的兜底，名称前缀启发式为最后兜底。
+    private func isCursorPoolModel(_ name: String, tier: Int?, auto: Set<String>) -> Bool {
+        if let tier { return tier == 2 }
         if auto.contains(name) { return true }
         let lower = name.lowercased()
         let prefixes = ["cursor-", "composer", "vega", "grok"]
@@ -178,7 +194,7 @@ final class PanelModel: ObservableObject {
         for row in rows {
             let name = row.modelLabel
             let cents = row.totalCents ?? 0
-            if isCursorPoolModel(name, auto: auto) { cursor += cents } else { other += cents }
+            if isCursorPoolModel(name, tier: row.tier, auto: auto) { cursor += cents } else { other += cents }
             top.append((name, cents))
         }
         top.sort { $0.cents > $1.cents }

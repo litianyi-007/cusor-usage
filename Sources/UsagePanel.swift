@@ -122,8 +122,9 @@ struct UsagePanelView: View {
             MeterRow(title: "Other Models",
                      percent: usage.planUsage?.apiPercentUsed ?? 0,
                      detail: poolDetail(cents: pools?.other, percent: usage.planUsage?.apiPercentUsed))
-            MeterRow(title: "Included total",
-                     percent: usage.planUsage?.totalPercentUsed ?? 0,
+            // Included 行用「买断额度」口径（includedSpend/limit），与官方 displayMessage 一致（如 92%）
+            MeterRow(title: "Included usage",
+                     percent: model.includedPercent ?? 0,
                      detail: totalDetail(usage.planUsage))
             if !model.topModels.isEmpty {
                 topModelsSection
@@ -167,7 +168,8 @@ struct UsagePanelView: View {
     private func totalDetail(_ pu: PlanUsage?) -> String {
         guard let pu else { return "—" }
         var parts: [String] = []
-        if let t = pu.totalSpend { parts.append("已用 $\(Self.cents(t))") }
+        // 与 includedPercent 同口径：已用取 includedSpend（bonus 免费额度另计），与官方 displayMessage 一致
+        if let t = pu.includedSpend ?? pu.totalSpend { parts.append("已用 $\(Self.cents(t))") }
         if let l = pu.limit { parts.append("限额 $\(Self.cents(l))") }
         if let r = pu.remaining { parts.append("剩余 $\(Self.cents(r))") }
         return parts.joined(separator: " · ")

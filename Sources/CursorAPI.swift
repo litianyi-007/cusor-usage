@@ -4,17 +4,19 @@ import Foundation
 
 struct PlanUsage: Codable {
     var totalSpend: Double?
+    /// 计入套餐买断额度的用量（美分）；displayMessage 的 92% = includedSpend / limit
     var includedSpend: Double?
     var bonusSpend: Double?
     var remaining: Double?
     var limit: Double?
     var remainingBonus: Bool?
     var bonusTooltip: String?
-    /// Cursor Models 池用量（%）
+    /// Cursor Models 池用量 %（Cursor 自家模型池，实测分母 ≈ $2000，含 bonus 构成的池额度）
     var autoPercentUsed: Double?
-    /// Other Models 池用量（%）
+    /// Other Models 池用量 %（第三方 API 模型池，实测分母 ≈ $500）
     var apiPercentUsed: Double?
-    /// 合计用量（%）
+    /// 两池合计 / 总池（auto 池 + API 池 ≈ $2500，含 bonus）——不是「$400 买断额度」的口径，
+    /// 展示金额（已用/限额/剩余）时应使用 includedSpend/limit，勿与此混用
     var totalPercentUsed: Double?
 }
 
@@ -54,7 +56,8 @@ struct PlanInfoResponse: Codable {
 
 /// GetAggregatedUsageEvents —— 按模型的当前周期聚合用量。
 /// 实测:aggregations[].totalCents 之和 == planUsage.totalSpend(精确一致)。
-/// 两个池的美元拆分 = 按 autoBucketModels(或名称前缀)归属各模型 totalCents 求和。
+/// 池归属的权威字段是 `tier`：tier=2 → Cursor Models(auto 池)，tier=1 → Other Models(API 池)。
+/// 实测验证：tier2 花费 ÷ autoPercentUsed ≈ $2000 池、tier1 花费 ÷ apiPercentUsed ≈ $500 池。
 struct AggregatedUsageEventsResponse: Codable {
     var aggregations: [AggregationRow]?
     var totalInputTokens: String?
@@ -69,6 +72,7 @@ struct AggregatedUsageEventsResponse: Codable {
         var cacheWriteTokens: String?
         var cacheReadTokens: String?
         var totalCents: Double?
+        /// 池归属：1 = Other Models(第三方 API 池)，2 = Cursor Models(auto 池)
         var tier: Int?
 
         var modelLabel: String {
