@@ -78,8 +78,10 @@ final class PanelModel: ObservableObject {
 
     // MARK: - 拉取
 
+    /// 刷新：**有缓存数据时静默刷新**（保持 loaded 展示缓存，后台请求成功后更新）；
+    /// 无缓存（首次/数据被清空）才进入 loading。
     func refresh() {
-        if phase != .loading { phase = .loading }
+        if usage == nil && phase != .loading { phase = .loading }
         Task { await fetch() }
     }
 
@@ -97,13 +99,17 @@ final class PanelModel: ObservableObject {
         isFetching = true
         defer { isFetching = false }
 
+        let hasCache = usage != nil
         let t0 = Date()
         let resolved = store.resolveToken()
         PanelModel.diagnose("fetch: resolveToken 完成 (source=\(resolved.source.rawValue))")
         guard let token = resolved.token, !token.isEmpty else {
             log("fetch: 未找到 accessToken")
-            phase = .failed("未找到 accessToken：点击底部 ⚙️ 设置粘贴 token，或先登录 Cursor 桌面端后点“自动读取 Cursor 本地”。")
-            statusTitle = ""
+            // 有缓存时保留缓存展示，不打断；无缓存才报错
+            if !hasCache {
+                phase = .failed("未找到 accessToken：点击底部 ⚙️ 设置粘贴 token，或先登录 Cursor 桌面端后点“自动读取 Cursor 本地”。")
+                statusTitle = ""
+            }
             return
         }
         switch resolved.source {
@@ -113,7 +119,7 @@ final class PanelModel: ObservableObject {
         }
         email = resolved.email
         membership = resolved.plan
-        log("fetch: 开始 (source=\(resolved.source.rawValue), email=\(resolved.email ?? "?"))")
+        log("fetch: 开始 (source=\(resolved.source.rawValue), email=\(resolved.email ?? "?"), hasCache=\(hasCache))")
 
         // 主数据：带硬超时（25s），确保绝不让面板永远停在 loading
         let u: PeriodUsage
@@ -130,17 +136,20 @@ final class PanelModel: ObservableObject {
             }
         } catch {
             log("fetch: 主请求失败 -> \(error.localizedDescription) (耗时 \(Int(-t0.timeIntervalSinceNow))s)")
-            phase = .failed("请求失败：\(error.localizedDescription)")
-            statusTitle = ""
+            // 有缓存时保留缓存数据与 loaded 状态（静默失败），无缓存才进入 failed
+            if !hasCache {
+                phase = .failed("请求失败：\(error.localizedDescription)")
+                statusTitle = ""
+            }
             return
         }
         log("fetch: 主请求成功 (耗时 \(Int(-t0.timeIntervalSinceNow))s)")
 
-        // 主数据先落地，保证面板立即从 loading 变成 loaded
+        // 主数据落地，进入 loaded
         usage = u
         lastUpdated = Date()
         phase = .loaded
-        // 状态栏标题：两池百分比（如 C7%/45%）
+        // 状态栏标题：两池百分比（如 7%/45%）
         statusTitle = poolTitle ?? ""
 
         // 次要数据（planName / 聚合拆分）fire-and-forget：失败或超时绝不影响主流程
